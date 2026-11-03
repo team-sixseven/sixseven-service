@@ -1,0 +1,53 @@
+# 운영체제
+.DS_Store
+Thumbs.db
+
+# 계정 정보와 비밀키
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Python 환경과 캐시
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# JavaScript 패키지와 빌드 결과
+node_modules/
+.next/
+.nuxt/
+.vite/
+dist/
+build/
+out/
+coverage/
+*.log
+
+# 데이터와 실행 결과
+data/
+DATA/
+models/
+artifacts/
+results/
+uploads/
+*.pkl
+*.pickle
+*.joblib
+*.pt
+*.pth
+*.onnx
+*.safetensors
+*.sqlite
+*.sqlite3
+*.db
