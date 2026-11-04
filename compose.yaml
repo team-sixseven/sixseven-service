@@ -6,6 +6,8 @@ services:
     init: true
     environment:
       SQLITE_PATH: /app/data/service.sqlite3
+      DEMO_MODE: "${DEMO_MODE:-true}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-}"
     volumes:
       - backend-data:/app/data
     healthcheck:
