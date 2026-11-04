@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from app import demo
+from app import model, demo
 from app.database import connect
 from app.main import app
 
@@ -100,8 +100,9 @@ class WorkflowTests(unittest.TestCase):
 
     def test_latest_low_score_does_not_inherit_previous_alert(self):
         with connect() as conn:
-            for key, value in [('lvef', 50), ('probnp', 500), ('egfr', 80)]:
+            for key, value in [('lvef', 55), ('probnp', 150), ('egfr', 80), ('la_size', 38), ('ischemic', 0), ('prior_mi', 0)]:
                 conn.execute('UPDATE clinical_values SET value=? WHERE patient_id=? AND key=?', (value, 'v01', key))
+            conn.execute("UPDATE patients SET nyha='II' WHERE id='v01'")
         response = self.client.post('/api/holter', headers=self.headers['admin'], json={
             'patient_id': 'v01', 'file_name': 'followup.xml', 'duration_h': 24,
             'vpb_24h': 0, 'couplets_24h': 0, 'nsvt': False,
@@ -153,7 +154,7 @@ class WorkflowTests(unittest.TestCase):
             row = conn.execute('SELECT re_min FROM alerts WHERE id=?', (detail['alert']['id'],)).fetchone()
             self.assertEqual(row['re_min'], 30)
 
-    def test_operating_mode_rejects_demo_emr_and_placeholder_model(self):
+    def test_operating_mode_rejects_demo_emr_and_scores_with_real_model(self):
         with patch.object(demo, 'DEMO_MODE', False), patch.dict(os.environ, {'DEMO_MODE': 'false'}):
             self.assertEqual(self.client.post('/api/patients/sync', headers=self.headers['test']).status_code, 503)
             self.assertEqual(self.client.post('/api/admin/demo/arrive', headers=self.headers['admin']).status_code, 404)
@@ -162,8 +163,9 @@ class WorkflowTests(unittest.TestCase):
                 'vpb_24h': 967, 'couplets_24h': 41, 'nsvt': True,
             })
             self.assertEqual(response.status_code, 202)
-            detail = self.wait_for('v05', 'failed')
-            self.assertIn('실제 모델', detail['record']['fail_reason'])
+            detail = self.wait_for('v05', 'done')
+            self.assertEqual(detail['analysis']['model_hash'], model.MODEL_HASH)
+            self.assertFalse(model.PLACEHOLDER)
 
 
 if __name__ == '__main__':

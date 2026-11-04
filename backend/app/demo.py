@@ -19,7 +19,7 @@ ROSTER = [
     dict(id="v03", mrn="10-2290-63", name="최재훈", age=69, sex="M", nyha="III", dx="허혈성 심부전", next_visit="+7",
          clinical=dict(lvef=25, la_size=50, egfr=52, probnp=3900, ischemic=1, prior_mi=1)),
     dict(id="v04", mrn="10-4120-77", name="김도현", age=57, sex="M", nyha="II", dx="확장성 심근병증", next_visit="+21",
-         clinical=dict(lvef=37, la_size=46, egfr=72, probnp=800, ischemic=0, prior_mi=0)),
+         clinical=dict(lvef=42, la_size=41, egfr=72, probnp=600, ischemic=0, prior_mi=0)),
     dict(id="v05", mrn="10-3315-08", name="정서민", age=63, sex="F", nyha="III", dx="허혈성 심부전", next_visit="+14",
          clinical=dict(lvef=24, la_size=51, egfr=55, probnp=3300, ischemic=1, prior_mi=0)),
     dict(id="v06", mrn="10-0391-25", name="오준석", age=54, sex="M", nyha="II", dx="비허혈성 심부전", next_visit="+45",

@@ -209,7 +209,7 @@ async def process(report_id: str) -> None:
             settings = get_settings(c)
             saved.update(save_analysis(c, report, patient, inputs, result, settings=settings))
             set_stage(c, report, progress, "factors", "done",
-                      {"factor_count": sum(1 for x in result["contributions"] if abs(x["contribution"]) >= 0.02)})
+                      {"factor_count": min(3, len(result["contributions"]))})
             points = round(result["score"] * 100)
             add_log(c, "시스템", "system", "analysis.completed", f"Holter 분석 완료 · 위험 점수 {points}점",
                     patient["id"], analysis_id=saved["id"])

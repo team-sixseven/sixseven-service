@@ -1,4 +1,4 @@
-import type { ServerEvent } from './types';
+export interface ServerEvent { type: string; at: string; data: any }
 
 const TOKEN_KEY = 'token';
 export const getToken = () => { try { return sessionStorage.getItem(TOKEN_KEY); } catch { return null; } };

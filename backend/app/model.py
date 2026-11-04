@@ -1,35 +1,52 @@
 """SCD 위험 점수 모델 실행부 (로지스틱 회귀, 변수 12개).
 
-주의: 아래 PARAMS의 평균·표준편차·계수는 모델팀이 아직 전달하지 않아서 넣어 둔 **임시 값(placeholder)**입니다.
-모델팀의 실제 값(또는 .joblib)을 받으면 이 표만 교체하면 되고, 교체 전까지 /api/model 응답의
-`placeholder`가 true로 나갑니다. 변수 순서와 log1p 처리는 모델팀 확정 후 맞춰야 합니다.
+모델팀이 준 scikit-learn 파이프라인(model.joblib, scikit-learn 1.9.1)의 값을 그대로 옮겼습니다.
+  - Pro-BNP · 24시간 심실조기수축 · 커플렛: log1p 후 표준화
+  - 나머지 9개: 표준화
+  - LogisticRegression(C=0.01, class_weight='balanced')
+서버에서 피클(joblib)을 직접 불러오지 않고 계수만 쓰므로 scikit-learn이 필요 없습니다.
+같은 점수가 나오는지는 tests/test_model.py가 scikit-learn 예측값과 비교해 확인합니다.
+모델 파일을 바꾸면 계수를 다시 꺼내고 MODEL_SHA256과 테스트 예시를 함께 갱신해야 합니다.
 """
-import hashlib
-import json
 import math
 
-PLACEHOLDER = True
-INTERCEPT = -0.4
+PLACEHOLDER = False
+MODEL_FILE = "model.joblib"
+MODEL_SHA256 = "533928061184002b3f2bcb6b176816c6476e736f8cef4a26fd63809d11e42849"
+SKLEARN_VERSION = "1.9.1"
+INTERCEPT = -0.3399619853817614
 
-# key, 화면 이름, 구분, 단위, 출처, log1p 변환, 평균, 표준편차, 계수
+# 입력 순서는 모델의 feature_names_in_ 순서와 같습니다(column이 모델 열 이름).
 VARIABLES = [
-    dict(key="age", name="나이", group="clinical", unit="세", source="EMR", log=False, mean=63.0, std=11.0, coef=0.12),
-    dict(key="sex_male", name="성별(남=1)", group="clinical", unit="", source="EMR", log=False, mean=0.75, std=0.43, coef=0.10),
-    dict(key="nyha", name="NYHA 등급", group="clinical", unit="", source="EMR", log=False, mean=2.5, std=0.5, coef=0.15),
-    dict(key="lvef", name="LVEF", group="clinical", unit="%", source="EMR(심장초음파)", log=False, mean=33.0, std=9.0, coef=-0.22),
-    dict(key="la_size", name="좌심방 크기", group="clinical", unit="mm", source="EMR(심장초음파)", log=False, mean=46.0, std=8.0, coef=0.10),
-    dict(key="egfr", name="eGFR", group="clinical", unit="mL/min/1.73㎡", source="EMR(검사)", log=False, mean=70.0, std=22.0, coef=-0.12),
-    dict(key="probnp", name="Pro-BNP", group="clinical", unit="ng/L", source="EMR(검사)", log=True, mean=7.0, std=1.1, coef=0.20),
-    dict(key="ischemic", name="허혈성 원인", group="clinical", unit="", source="EMR", log=False, mean=0.40, std=0.49, coef=0.08),
-    dict(key="prior_mi", name="과거 심근경색", group="clinical", unit="", source="EMR", log=False, mean=0.30, std=0.46, coef=0.06),
-    dict(key="vpb_24h", name="심실조기수축(24시간)", group="holter", unit="회", source="Holter 판독", log=True, mean=5.5, std=1.8, coef=0.18),
-    dict(key="couplets_24h", name="심실 커플렛(24시간)", group="holter", unit="회", source="Holter 판독", log=True, mean=2.2, std=1.6, coef=0.15),
-    dict(key="nsvt", name="비지속성 심실빈맥", group="holter", unit="", source="Holter 판독", log=False, mean=0.35, std=0.48, coef=0.20),
+    dict(key="age", column="Age", name="나이", group="clinical", unit="세", source="EMR",
+         log=False, mean=62.91011235955056, std=11.189773068998761, coef=0.053651307956832296),
+    dict(key="sex_male", column="Gender (male=1)", name="성별", group="clinical", unit="", source="EMR",
+         log=False, mean=0.7162921348314607, std=0.4507967528832137, coef=0.08617539707385624),
+    dict(key="nyha", column="NYHA class", name="NYHA 등급", group="clinical", unit="", source="EMR",
+         log=False, mean=2.168539325842697, std=0.3743445224484872, coef=0.17986776738010135),
+    dict(key="lvef", column="LVEF (%)", name="LVEF", group="clinical", unit="%", source="EMR(심장초음파)",
+         log=False, mean=40.07022471910113, std=13.637485968645649, coef=-0.13514026983103686),
+    dict(key="la_size", column="Left atrial size (mm)", name="좌심방 크기", group="clinical", unit="mm", source="EMR(심장초음파)",
+         log=False, mean=44.93539325842696, std=7.82309926747185, coef=0.17458475677104643),
+    dict(key="egfr", column="eGFR", name="eGFR", group="clinical", unit="mL/min", source="EMR(검사)",
+         log=False, mean=65.13126551173251, std=17.522219036834343, coef=0.023394696662231276),
+    dict(key="probnp", column="Pro-BNP (ng/L)", name="Pro-BNP", group="clinical", unit="ng/L", source="EMR(검사)",
+         log=True, mean=6.465655793833288, std=1.2843570445138934, coef=0.21989851902931984),
+    dict(key="ischemic", column="Ischemic etiology", name="허혈성 원인", group="clinical", unit="", source="EMR",
+         log=False, mean=0.449438202247191, std=0.4974369353073855, coef=0.10492995222717848),
+    dict(key="prior_mi", column="Prior Myocardial Infarction (yes=1)", name="과거 심근경색", group="clinical", unit="", source="EMR",
+         log=False, mean=0.41292134831460675, std=0.4923589223530471, coef=0.15390349298023084),
+    dict(key="vpb_24h", column="Holter ventricular premature beats in 24h", name="심실조기수축(24시간)", group="holter", unit="회", source="Holter 판독",
+         log=True, mean=5.439789657117917, std=2.5334289765195055, coef=0.16095930670968756),
+    dict(key="couplets_24h", column="Holter ventricular couplets", name="심실 커플렛(24시간)", group="holter", unit="회", source="Holter 판독",
+         log=True, mean=1.5954725124243598, std=1.9884125040234713, coef=0.12949842206587278),
+    dict(key="nsvt", column="Holter NSVT (yes=1)", name="비지속성 심실빈맥", group="holter", unit="", source="Holter 판독",
+         log=False, mean=0.29213483146067415, std=0.4547439628055744, coef=0.10726382189516903),
 ]
 KEYS = [v["key"] for v in VARIABLES]
 BY_KEY = {v["key"]: v for v in VARIABLES}
 CLINICAL_KEYS = [v["key"] for v in VARIABLES if v["group"] == "clinical"]
-MODEL_HASH = hashlib.sha256(json.dumps([INTERCEPT, VARIABLES], sort_keys=True).encode()).hexdigest()[:16]
+MODEL_HASH = MODEL_SHA256[:16]
 ELIGIBLE_NYHA = (2, 3)
 
 
@@ -68,9 +85,11 @@ def format_value(key: str, value: float) -> str:
 
 MODEL_INFO = {
     "placeholder": PLACEHOLDER,
-    "placeholder_note": "계수·평균·표준편차는 모델팀 확정 전 임시 값입니다. 성능 지표는 모델팀이 전달한 값을 그대로 표시합니다.",
+    "placeholder_note": "",
+    "sha256": MODEL_SHA256,
+    "sklearn_version": SKLEARN_VERSION,
     "type": "로지스틱 회귀 (C=0.01, class weight balanced)",
-    "file": "scd_logreg_v0_1.joblib",
+    "file": MODEL_FILE,
     "hash": MODEL_HASH,
     "output": "4년 이내 돌연심장사(SCD) 위험 점수 0~1 (보정하지 않은 값, 실제 발생 확률 아님)",
     "description": "임상 정량 데이터 + 일부 심전도(ECG) 지표(Holter 판독 3개)",
