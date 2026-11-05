@@ -41,15 +41,20 @@ def fresh_progress() -> dict:
     return {"stages": [{"key": k, "label": label, "state": "wait"} for k, label in STAGES]}
 
 
-def ingest_report(conn, patient, file_name, duration_h, vpb, couplets, nsvt, file_uri=None) -> dict:
+def ingest_report(conn, patient, file_name, duration_h, vpb, couplets, nsvt, file_uri=None, source="판독실", input_snapshot=None) -> dict:
     report_id = next_id(conn, "r")
     seq = next_number(conn, "q")
     received = iso()
     conn.execute(
         "INSERT INTO holter_reports(id, patient_id, file_uri, file_name, received_at, source, duration_h, vpb_24h, "
         "couplets_24h, nsvt, status, queue_seq, progress) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (report_id, patient["id"], file_uri, file_name, received, "판독실", duration_h, vpb, couplets, int(nsvt),
+        (report_id, patient["id"], file_uri, file_name, received, source, duration_h, vpb, couplets, int(nsvt),
          "queued", seq, json.dumps(fresh_progress(), ensure_ascii=False)))
+    if input_snapshot is not None:
+        if set(input_snapshot) != set(model.KEYS):
+            raise ValueError("A complete model input snapshot is required")
+        conn.execute("INSERT INTO report_inputs(report_id,inputs) VALUES (?,?)",
+                     (report_id,json.dumps(input_snapshot,allow_nan=False)))
     add_log(conn, "판독실", "system", "record.received", "Holter 기록 업로드", patient["id"])
     pos = queue_position(conn, report_id)
     publish("analysis.queued", {"patient_id": patient["id"], "record_id": report_id, "queue_pos": pos,
@@ -60,6 +65,9 @@ def ingest_report(conn, patient, file_name, duration_h, vpb, couplets, nsvt, fil
 
 
 def gather_inputs(conn, patient, report) -> dict:
+    snapshot = conn.execute("SELECT inputs FROM report_inputs WHERE report_id=?",(report["id"],)).fetchone()
+    if snapshot:
+        return json.loads(snapshot["inputs"])
     inputs = {
         "age": patient["age"],
         "sex_male": None if patient["sex"] is None else (1 if patient["sex"] == "M" else 0),
