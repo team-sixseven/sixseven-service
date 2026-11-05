@@ -132,3 +132,27 @@ class MusicImportTests(unittest.TestCase):
             self.assertEqual([r['patient_id'] for r in alerts],[pids[1]])
             for row in conn.execute('SELECT inputs FROM analyses'):
                 self.assertEqual(set(json.loads(row[0])),set(model.KEYS))
+
+    def test_followup_snapshots_inputs_and_blocks_duplicates(self):
+        self.rows[0]['demo_id']='T34';self.write()
+        with patch.object(music_data.inference_client,'_predict',side_effect=self.predict):music_data.initialize()
+        with database.connect() as conn:
+            original=dict(conn.execute("SELECT * FROM patients WHERE id='T34'").fetchone())
+            before=[tuple(r) for r in conn.execute("SELECT * FROM clinical_values WHERE patient_id='T34'")]
+            r=music_data.add_synthetic_followup(conn)
+            report=conn.execute('SELECT * FROM holter_reports WHERE id=?',(r['record_id'],)).fetchone()
+            inputs=music_data.pipeline.gather_inputs(conn,original,report)
+            self.assertEqual(inputs['probnp'],50)
+            self.assertEqual(inputs['nyha'],2)
+            self.assertEqual(inputs['ischemic'],1)
+            self.assertEqual(before,[tuple(r) for r in conn.execute("SELECT * FROM clinical_values WHERE patient_id='T34'")])
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM analyses WHERE patient_id='T34'").fetchone()[0],1)
+            with self.assertRaises(service.AlertError):music_data.add_synthetic_followup(conn)
+            music_data.reset_reception(conn)
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM report_inputs').fetchone()[0],0)
+
+    def test_followup_requires_completed_baseline(self):
+        with patch.object(music_data.inference_client,'_predict',side_effect=self.predict):music_data.initialize()
+        with database.connect() as conn:
+            with self.assertRaises(service.AlertError):music_data.add_synthetic_followup(conn)
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM report_inputs').fetchone()[0],0)

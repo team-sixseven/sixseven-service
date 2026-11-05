@@ -977,7 +977,7 @@ export class DemoApp extends Component {
       dm: (function () {
         return { open: !!st.demoPanel, auto: st.demoAuto === true, queueText: '서버가 남은 시연 기록을 순서대로 넣습니다',
           noNext: false, noHigh: false, noAll: false, noCur: false, all: function () { self.demoAll(); }, next: function () { self.demoNext(false); }, high: function () { self.demoNext(true); },
-          cur: function () { self.demoCur(); }, skip: function () { self.demoSkip(30); }, reset: function () { self.demoReset(); },
+          followup: function () { self.demoCall('/admin/demo/followup', '추이 시연용 후속 기록을 수신했습니다.'); }, cur: function () { self.demoCur(); }, skip: function () { self.demoSkip(30); }, reset: function () { self.demoReset(); },
           toggleAuto: function (e) { self.demoAuto(e.target.checked); }, close: function () { self.setState({ demoPanel: false }); },
           btn: 'min-height: 32px; padding: 2px 12px; border: 1px solid #D5D9E0; background: #FFFFFF; color: #16191F; font-size: 17px; cursor: pointer; text-align: left;',
           kbd: 'font: 500 12px/1 ui-monospace, monospace; color: #646B78; border: 1px solid #E4E7EC; border-radius: 4px; padding: 3px 5px; background: #F7F8FA;' };

@@ -36,6 +36,9 @@ CREATE TABLE IF NOT EXISTS holter_reports (
   progress TEXT NOT NULL DEFAULT '{}', analysis_id TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_reports_patient ON holter_reports(patient_id, received_at);
+CREATE TABLE IF NOT EXISTS report_inputs (
+  report_id TEXT PRIMARY KEY REFERENCES holter_reports(id), inputs TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS analyses (
   id TEXT PRIMARY KEY, report_id TEXT NOT NULL, patient_id TEXT NOT NULL REFERENCES patients(id),
   score REAL NOT NULL, band TEXT NOT NULL, analyzed_at TEXT NOT NULL, inputs TEXT NOT NULL, model_hash TEXT

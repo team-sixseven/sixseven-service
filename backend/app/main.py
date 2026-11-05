@@ -461,6 +461,14 @@ async def demo_arrive(user: Demo, high: bool = False, patient: str | None = None
         return {"arrived": [r for p in todo if (r := demo.arrive(conn, p))]}
 
 
+@app.post("/api/admin/demo/followup", tags=["demo"], status_code=202)
+async def demo_followup(user: Demo):
+    if not music_data.enabled():
+        raise HTTPException(409,"MUSIC 시연 모드에서만 사용할 수 있습니다.")
+    with connect() as conn:
+        return music_data.add_synthetic_followup(conn)
+
+
 @app.post("/api/admin/demo/advance", tags=["demo"])
 async def demo_advance(user: Demo, min: int = Query(30, ge=1, le=240)):
     from datetime import datetime, timedelta

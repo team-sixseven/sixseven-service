@@ -116,7 +116,7 @@ def seed(conn) -> None:
 def reset_all(conn) -> None:
     """로그인 토큰과 계정은 남기고 시연 데이터를 처음 상태로 되돌립니다."""
     conn.executescript("DROP TRIGGER IF EXISTS audit_logs_no_update; DROP TRIGGER IF EXISTS audit_logs_no_delete;")
-    for table in ("audit_logs", "alerts", "factors", "analyses", "holter_reports", "clinical_values", "patients",
+    for table in ("audit_logs", "alerts", "factors", "analyses", "report_inputs", "holter_reports", "clinical_values", "patients",
                   "settings", "seq"):
         conn.execute(f"DELETE FROM {table}")
     conn.execute("DELETE FROM sqlite_sequence WHERE name='audit_logs'")

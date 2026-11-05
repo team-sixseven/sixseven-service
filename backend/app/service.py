@@ -146,8 +146,11 @@ def patient_summary(conn, p) -> dict:
             latest["hold_reason"] = report["hold_reason"]
         if status == "queued":
             latest["queue_pos"] = queue_position(conn, report["id"])
+    current_nyha = p["nyha"]
+    if report is not None and analysis is not None and analysis["report_id"] == report["id"] and report["source"] == "가상 후속 검사":
+        current_nyha = {1:"I",2:"II",3:"III",4:"IV"}.get(_json(analysis["inputs"],{}).get("nyha"),current_nyha)
     return {
-        "id": p["id"], "mrn": p["mrn"], "name": p["name"], "age": p["age"], "sex": p["sex"], "nyha": p["nyha"],
+        "id": p["id"], "mrn": p["mrn"], "name": p["name"], "age": p["age"], "sex": p["sex"], "nyha": current_nyha,
         "dx": p["dx"], "next_visit": p["next_visit"], "exclusion": p["exclusion"],
         "latest": latest, "alert": alert_view(alert),
     }

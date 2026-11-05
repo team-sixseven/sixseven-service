@@ -74,7 +74,7 @@ def initialize():
         conn.execute('BEGIN IMMEDIATE')
         try:
             conn.execute('DROP TRIGGER IF EXISTS audit_logs_no_delete')
-            for table in ('music_outcomes', 'audit_logs', 'alerts', 'factors', 'analyses', 'holter_reports', 'clinical_values', 'patients'):
+            for table in ('music_outcomes', 'audit_logs', 'alerts', 'factors', 'analyses', 'report_inputs', 'holter_reports', 'clinical_values', 'patients'):
                 conn.execute(f'DELETE FROM {table}')
             conn.execute("CREATE TRIGGER audit_logs_no_delete BEFORE DELETE ON audit_logs BEGIN SELECT RAISE(ABORT, 'audit_logs is append-only'); END")
             conn.execute("INSERT OR REPLACE INTO settings(key,value) VALUES ('threshold','0.5')")
@@ -153,11 +153,38 @@ def reset_reception(conn):
     conn.execute('BEGIN IMMEDIATE')
     try:
         conn.execute('DROP TRIGGER IF EXISTS audit_logs_no_delete')
-        for table in ('audit_logs','alerts','factors','analyses','holter_reports'):
+        for table in ('audit_logs','alerts','factors','analyses','report_inputs','holter_reports'):
             conn.execute(f'DELETE FROM {table}')
         conn.execute("CREATE TRIGGER audit_logs_no_delete BEFORE DELETE ON audit_logs BEGIN SELECT RAISE(ABORT, 'audit_logs is append-only'); END")
         service.add_log(conn,'관리자','system','music.replay.reset','MUSIC 기록 수신 시연 초기화')
         conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+
+SYNTHETIC_FOLLOWUP_URI = 'synthetic-followup:T34:v1'
+
+
+def add_synthetic_followup(conn):
+    """One illustrative input snapshot; not a MUSIC observation or treatment outcome."""
+    conn.execute('BEGIN IMMEDIATE')
+    try:
+        if conn.execute('SELECT 1 FROM holter_reports WHERE file_uri=?',(SYNTHETIC_FOLLOWUP_URI,)).fetchone():
+            raise service.AlertError(409,'추이 시연용 후속 기록은 이미 수신했습니다.')
+        baseline = conn.execute("SELECT a.* FROM analyses a JOIN holter_reports r ON r.id=a.report_id WHERE a.patient_id='T34' AND r.file_uri IS NOT ? ORDER BY a.rowid DESC LIMIT 1",(SYNTHETIC_FOLLOWUP_URI,)).fetchone()
+        if baseline is None:
+            raise service.AlertError(409,'T34의 첫 분석이 완료된 뒤 실행해 주세요.')
+        patient = conn.execute("SELECT * FROM patients WHERE id='T34'").fetchone()
+        inputs = json.loads(baseline['inputs'])
+        inputs.update(nyha=2,lvef=60,la_size=32,egfr=75,probnp=50,vpb_24h=0,couplets_24h=0,nsvt=0)
+        result = pipeline.ingest_report(conn,patient,'후속 검사',0,0,0,0,
+            file_uri=SYNTHETIC_FOLLOWUP_URI,source='가상 후속 검사',input_snapshot=inputs)
+        service.add_log(conn,'관리자','system','synthetic.followup.received',
+                        '추이 시연용 가상 입력 수신 · 실제 MUSIC 후속 관찰이나 치료 효과가 아님','T34')
+        conn.commit()
+        pipeline.wake()
+        return result
     except Exception:
         conn.rollback()
         raise
