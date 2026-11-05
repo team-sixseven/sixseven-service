@@ -2,12 +2,22 @@ name: sixseven-service
 
 services:
   backend:
+    image: ${BACKEND_IMAGE:-sixseven-backend:local}
     build: ./backend
+    restart: unless-stopped
     init: true
     environment:
       SQLITE_PATH: /app/data/service.sqlite3
       DEMO_MODE: "${DEMO_MODE:-true}"
       ADMIN_PASSWORD: "${ADMIN_PASSWORD:-}"
+      ATTENDING_PASSWORD: "${ATTENDING_PASSWORD:-1234}"
+      ONCALL_PASSWORD: "${ONCALL_PASSWORD:-1234}"
+      PUBLIC_DEMO: "${PUBLIC_DEMO:-false}"
+      INFERENCE_BASE_URL: http://inference:8000
+      INFERENCE_API_KEY: "${INFERENCE_API_KEY:?Set INFERENCE_API_KEY in .env}"
+    depends_on:
+      inference:
+        condition: service_healthy
     volumes:
       - backend-data:/app/data
     healthcheck:
@@ -24,7 +34,9 @@ services:
       - no-new-privileges:true
 
   frontend:
+    image: ${FRONTEND_IMAGE:-sixseven-frontend:local}
     build: ./frontend
+    restart: unless-stopped
     init: true
     ports:
       - "127.0.0.1:${WEB_PORT:-8080}:8080"
@@ -34,6 +46,24 @@ services:
         restart: true
     healthcheck:
       test: [CMD, wget, -q, --spider, "http://127.0.0.1:8080/healthz"]
+      interval: 5s
+      timeout: 3s
+      start_period: 5s
+      retries: 6
+    security_opt:
+      - no-new-privileges:true
+
+  inference:
+    image: ${INFERENCE_IMAGE:-sixseven-inference:local}
+    build:
+      context: .
+      dockerfile: inference/Dockerfile
+    restart: unless-stopped
+    init: true
+    environment:
+      INFERENCE_API_KEY: "${INFERENCE_API_KEY:?Set INFERENCE_API_KEY in .env}"
+    healthcheck:
+      test: [CMD, python, -c, "import os,urllib.request; urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:8000/ready',headers={'Authorization':'Bearer '+os.environ['INFERENCE_API_KEY']}),timeout=2)"]
       interval: 5s
       timeout: 3s
       start_period: 5s

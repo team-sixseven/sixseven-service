@@ -8,7 +8,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Web
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from . import demo, events, model, pipeline, security, service
+from . import demo, events, model, pipeline, security, service, inference_client
 from .database import check_database, connect, get_settings, initialize_database, iso, now, set_setting
 from .service import AlertError
 
@@ -19,13 +19,19 @@ def ensure_users() -> None:
     """시연 계정은 DEMO_MODE일 때만 만듭니다. 운영에서는 ADMIN_PASSWORD로 관리자 한 명만 만듭니다."""
     accounts = []
     if demo.DEMO_MODE:
-        accounts = [("u-test", "test", "1234", "김담당", "attending", "심장내과"),
-                    ("u-admin", "admin", "1234", "관리자", "admin", None),
-                    ("u-oncall", "oncall", "1234", "이당직", "oncall", "심장내과")]
+        accounts = [("u-test", "test", os.environ.get("ATTENDING_PASSWORD", "1234"), "김담당", "attending", "심장내과"),
+                    ("u-admin", "admin", os.environ.get("ADMIN_PASSWORD", "1234"), "관리자", "admin", None),
+                    ("u-oncall", "oncall", os.environ.get("ONCALL_PASSWORD", "1234"), "이당직", "oncall", "심장내과")]
     elif os.environ.get(ADMIN_PASSWORD_ENV):
         accounts = [("u-admin", "admin", os.environ[ADMIN_PASSWORD_ENV], "관리자", "admin", None)]
+    if os.environ.get("PUBLIC_DEMO", "false").lower() == "true":
+        if any(len(a[2]) < 12 or a[2] == "1234" for a in accounts):
+            raise RuntimeError("공개 시연 계정은 각각 12자 이상의 비밀번호가 필요합니다.")
     with connect() as conn:
         for uid, username, password, name, role, dept in accounts:
+            if (os.environ.get("PUBLIC_DEMO", "false").lower() == "true"
+                    and security.authenticate(username, "1234") is not None):
+                raise RuntimeError("기존 시연 DB에 기본 비밀번호가 있습니다. 공개 전 비밀번호를 변경하거나 새 시연 DB를 사용하세요.")
             if conn.execute("SELECT 1 FROM users WHERE username=?", (username,)).fetchone() is None:
                 conn.execute("INSERT INTO users(id, username, password_hash, name, role, dept) VALUES (?,?,?,?,?,?)",
                              (uid, username, security.hash_password(password), name, role, dept))
@@ -113,16 +119,12 @@ async def login(body: LoginBody):
         raise HTTPException(401, "아이디 또는 비밀번호가 올바르지 않습니다.")
     security.clear_failures(username)
     token, expires = security.issue_token(user["id"])
-    if demo.DEMO_MODE:
-        demo.start_autoplay()
     return {"token": token, "expires_at": expires, "user": public_user(user)}
 
 
 @app.post("/api/auth/logout", tags=["auth"], status_code=204)
 async def logout(user: User, authorization: Annotated[str, Header()]):
     security.revoke_token(authorization[7:])
-    if demo.DEMO_MODE:
-        demo.full_reset()  # 로그아웃하면 시연 데이터가 처음 상태로 돌아갑니다
 
 
 @app.get("/api/me", tags=["auth"])
@@ -143,6 +145,16 @@ def health(request: Request) -> HealthStatus:
     except sqlite3.Error as error:
         raise HTTPException(status_code=503, detail="Database unavailable") from error
     return HealthStatus(status="ok", database="sqlite")
+
+
+@app.get("/api/ready", tags=["status"])
+async def readiness(request: Request):
+    try:
+        check_database(request.app.state.database_path)
+        await asyncio.to_thread(inference_client.ready)
+    except Exception as error:
+        raise HTTPException(503, "서비스 또는 AI 서버가 준비되지 않았습니다.") from error
+    return {"status": "ready"}
 
 
 @app.get("/api/model", tags=["status"])
