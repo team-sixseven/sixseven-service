@@ -180,7 +180,7 @@ def add_synthetic_followup(conn):
         inputs.update(nyha=2,lvef=60,la_size=32,egfr=75,probnp=50,vpb_24h=0,couplets_24h=0,nsvt=0)
         result = pipeline.ingest_report(conn,patient,'후속 검사',0,0,0,0,
             file_uri=SYNTHETIC_FOLLOWUP_URI,source='가상 후속 검사',input_snapshot=inputs)
-        service.add_log(conn,'관리자','system','synthetic.followup.received',
+        service.add_log(conn,'시스템','system','synthetic.followup.received',
                         '추이 시연용 가상 입력 수신 · 실제 MUSIC 후속 관찰이나 치료 효과가 아님','T34')
         conn.commit()
         pipeline.wake()

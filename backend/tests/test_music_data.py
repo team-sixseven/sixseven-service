@@ -144,6 +144,7 @@ class MusicImportTests(unittest.TestCase):
             inputs=music_data.pipeline.gather_inputs(conn,original,report)
             self.assertEqual(inputs['probnp'],50)
             self.assertEqual(inputs['nyha'],2)
+            self.assertEqual(conn.execute("SELECT actor FROM audit_logs WHERE event='synthetic.followup.received'").fetchone()[0],'시스템')
             self.assertEqual(inputs['ischemic'],1)
             self.assertEqual(before,[tuple(r) for r in conn.execute("SELECT * FROM clinical_values WHERE patient_id='T34'")])
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM analyses WHERE patient_id='T34'").fetchone()[0],1)
