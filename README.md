@@ -47,4 +47,4 @@ DEMO_MODE=true .venv/bin/uvicorn app.main:app --reload
 
 ## 배포
 
-[GCP 설치·자동 배포 설정](deploy/README.md)을 참고하세요. 배포 작업은 첫 GCP 검증 전에는 수동 실행으로 제공하며, 검증 후 main 자동 배포로 전환합니다.
+[GCP 설치·자동 배포 설정](deploy/README.md)을 참고하세요. 서비스·AI·배포 설정이 main에 반영되면 자동 배포됩니다. 문서만 바꾸면 배포하지 않습니다. GitHub Actions에서 수동 재배포도 가능합니다.
