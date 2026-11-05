@@ -40,4 +40,4 @@ jobs:
           ZONE: ${{ vars.GCP_ZONE }}
           PROJECT: ${{ vars.GCP_PROJECT_ID }}
         run: |
-          gcloud compute ssh "$VM" --zone "$ZONE" --project "$PROJECT" --tunnel-through-iap --command="cd /opt/sixseven-service && git fetch origin main && git checkout --detach '$GITHUB_SHA' && ./deploy/update.sh '$GITHUB_SHA'"
+          gcloud compute ssh "$VM" --zone "$ZONE" --project "$PROJECT" --tunnel-through-iap --command="sudo bash -c 'cd /opt/sixseven-service && git fetch origin main && git checkout --detach $GITHUB_SHA && ./deploy/update.sh $GITHUB_SHA'"

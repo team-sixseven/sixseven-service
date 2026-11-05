@@ -5,7 +5,7 @@ Run the frontend, backend and inference API on one Ubuntu 24.04 VM. Inference is
 ## First deployment
 
 1. Create an `e2-standard-2` VM with a 50 GB persistent disk. Permit SSH through IAP only; do not open 8000/8080 publicly. Enable Docker and Compose. Use a dedicated VM service account with Artifact Registry Reader, without project-wide Editor.
-2. Place this repository at `/opt/sixseven-service`. The deployment OS Login user must own that directory and be allowed to run Docker. Docker access is equivalent to administrative access: restrict it to the deployment identity and infrastructure owner.
+2. Place this repository at `/opt/sixseven-service`. Keep the checkout and environment root-owned. The deployment OS Login service account runs the update through sudo (OS Admin Login); restrict this administrative access to the deployment identity and infrastructure owner.
 3. Run `python3 scripts/init_env.py`. The generated `.env` has private permissions, inference authentication and separate random passwords. Check passwords locally; never copy the inference key to the frontend. On an existing database, changing these settings does not rotate existing account passwords.
 4. Run `docker compose up --build -d --wait` and `python3 scripts/smoke.py`. The smoke command creates a synthetic analysis; run it on the rehearsal database.
 5. Run the official `cloudflared` package as a separate system service, with `cloudflared tunnel --url http://127.0.0.1:8080`. Record the generated URL and test login, WebSocket updates and analysis from another network. A new tunnel creates a new URL. Keep the tunnel independent of application deployment.
