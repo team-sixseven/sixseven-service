@@ -80,3 +80,17 @@ def user_for_token(token: str | None) -> dict | None:
 def revoke_token(token: str) -> None:
     with connect() as conn:
         conn.execute("DELETE FROM auth_tokens WHERE token=?", (token,))
+
+
+# Shared synthetic demo: cap work before password hashing, without collecting IP addresses.
+_signup_attempts: list[float] = []
+
+
+def signup_locked() -> bool:
+    cutoff = time.monotonic() - WINDOW_SEC
+    _signup_attempts[:] = [t for t in _signup_attempts if t > cutoff]
+    return len(_signup_attempts) >= 30
+
+
+def record_signup_attempt() -> None:
+    _signup_attempts.append(time.monotonic())

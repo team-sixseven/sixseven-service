@@ -1,5 +1,6 @@
 """조회·변경 로직: 로그, 환자 목록/상세, 알림 처리."""
 import json
+import os
 import sqlite3
 from datetime import datetime
 
@@ -261,7 +262,9 @@ def get_alert(conn, alert_id: str) -> sqlite3.Row:
 def ensure_can_act(conn, user: dict, alert) -> None:
     if user["role"] == "oncall" and alert["re"] < 2:
         raise AlertError(403, "당직의는 당직의에게 전달된 알림만 처리할 수 있습니다.")
-    if user["role"] == "attending":
+    shared_demo = (os.environ.get("DEMO_MODE", "false").lower() in ("1", "true", "yes")
+                   and os.environ.get("ALLOW_SIGNUP", "false").lower() == "true")
+    if user["role"] == "attending" and not shared_demo:
         patient = conn.execute("SELECT attending_id FROM patients WHERE id=?", (alert["patient_id"],)).fetchone()
         if patient is None or patient["attending_id"] != user["id"]:
             raise AlertError(403, "담당 환자의 알림만 처리할 수 있습니다.")

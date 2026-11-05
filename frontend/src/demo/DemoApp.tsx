@@ -19,7 +19,7 @@ export class DemoApp extends Component {
 
   initialState() {
     return {
-      booting: !!getToken(), me: null, dark: (function () { try { return window.localStorage.getItem('scdDark') === '1'; } catch (e) { return false; } })(),
+      signupEnabled: false, signupMode: false, authError: "", booting: !!getToken(), me: null, dark: (function () { try { return window.localStorage.getItem('scdDark') === '1'; } catch (e) { return false; } })(),
       tab: 'board', view: 'main', inboxOpen: false, filter: 'all', sel: null, now: Date.now(), exam: null, memoEdit: null, actEdit: null,
       toast: null, toasts: [], tOut: {}, tSeq: 0, draft: {}, cu: null, alertOver: {},
       apiPatients: [], apiQueue: { analyzing: null, queued: [] }, apiSettings: { threshold: 0.4, re_min: 30, esc_min: 60, channels: { app: true, web: true, sms: false } },
@@ -30,6 +30,7 @@ export class DemoApp extends Component {
   componentDidMount() {
     var self = this;
     this.applyDark(!!this.state.dark);
+    api("/auth/options").then(function (res) { self.setState({ signupEnabled: !!res.signup_enabled }); }).catch(function () {});
     setUnauthorizedHandler(function () { self.resetToLogin(); });
     this._onKey = function (e) {
       if (e.key === 'Escape' && self._esc && self._esc()) { e.preventDefault(); return; }
@@ -73,7 +74,7 @@ export class DemoApp extends Component {
   resetToLogin() {
     setToken(null); this.stopSession();
     if (this._cuI) { clearInterval(this._cuI); this._cuI = null; }
-    this.setState(Object.assign({}, this.initialState(), { booting: false, dark: this.state.dark, lgErr: false }));
+    this.setState(Object.assign({}, this.initialState(), { booting: false, dark: this.state.dark, lgErr: false, signupEnabled: this.state.signupEnabled }));
     var self = this; setTimeout(function () { var el = document.getElementById('lgId'); if (el) el.focus(); }, 60);
   }
   onEvent(e) {
@@ -240,9 +241,9 @@ export class DemoApp extends Component {
     var idEl = document.getElementById('lgId'), pwEl = document.getElementById('lgPw');
     var id = ((idEl && idEl.value) || '').trim(), pw = (pwEl && pwEl.value) || '', self = this;
     if (this.state.lgBusy) return;
-    this.setState({ lgBusy: true, lgErr: false });
+    this.setState({ lgBusy: true, lgErr: false, authError: "" });
     var t0 = Date.now();
-    api('/auth/login', { method: 'POST', body: { username: id, password: pw } }).then(function (res) {
+    api(this.state.signupMode ? '/auth/signup' : '/auth/login', { method: 'POST', body: { username: id, password: pw } }).then(function (res) {
       setToken(res.token);
       var wait = Math.max(0, 700 - (Date.now() - t0));
       setTimeout(function () { self.setState({ lgLeave: true }); }, wait);
@@ -250,8 +251,8 @@ export class DemoApp extends Component {
         self.setState({ me: res.user, lgErr: false, acctOpen: false, lgBusy: false, lgLeave: false, appIn: true });
         self.startSession();
       }, wait + 280);
-    }).catch(function () {
-      self.setState({ lgErr: true, lgBusy: false });
+    }).catch(function (error) {
+      self.setState({ lgErr: true, lgBusy: false, authError: error.message });
       if (pwEl) { pwEl.value = ''; pwEl.focus(); }
     });
   }
@@ -817,10 +818,11 @@ export class DemoApp extends Component {
       listStyle: st.tab === 'board'
         ? 'flex: 0 0 340px; width: 340px; min-width: 0; position: sticky; top: 73px; height: calc(100vh - 73px); margin: -16px 0 0 -32px; display: flex; flex-direction: column; overflow: hidden; background: #FFFFFF; border-right: 1px solid #E4E7EC; box-sizing: border-box'
         : 'flex: 2 1 480px; min-width: 0; background: #FFFFFF; border: 1px solid #E4E7EC; border-radius: 10px; box-sizing: border-box',
-      loggedIn: !!st.user, loggedOut: !st.user, isAdmin: st.user === 'admin', lgErr: !!st.lgErr,
+      loggedIn: !!st.user, loggedOut: !st.user, isAdmin: st.user === 'admin', lgErr: !!st.lgErr, authError: st.authError, signupMode: !!st.signupMode, signupEnabled: !!st.signupEnabled,
+      toggleSignup: function () { if (!st.lgBusy) self.setState({ signupMode: !st.signupMode, lgErr: false, authError: "" }); },
       darkOn: !!st.dark, darkOff: !st.dark, darkAria: st.dark ? 'true' : 'false', darkTip: st.dark ? '라이트 모드' : '다크 모드',
       toggleDark: function () { var d = !self.state.dark; try { window.localStorage.setItem('scdDark', d ? '1' : '0'); } catch (e) {} self.applyDark(d); self.setState({ dark: d }); },
-      lgBusy: !!st.lgBusy, lgBtnText: st.lgBusy ? '로그인 중…' : '로그인', lgOutCls: st.lgLeave ? 'lg-out' : '', appInCls: st.appIn ? 'app-in' : '',
+      lgBusy: !!st.lgBusy, lgBtnText: st.lgBusy ? (st.signupMode ? '계정 생성 중…' : '로그인 중…') : (st.signupMode ? '계정 만들고 시작하기' : '로그인'), lgOutCls: st.lgLeave ? 'lg-out' : '', appInCls: st.appIn ? 'app-in' : '',
       lgKey: function (e) { if (e && e.key === 'Enter') self.doLogin(); },
       doLogin: function () { self.doLogin(); },
       doLogout: function () { self.doLogout(); },
