@@ -16,7 +16,7 @@ Create an Artifact Registry Docker repository. Configure Workload Identity Feder
 
 Set these GitHub `production` environment variables: `GCP_WIF_PROVIDER`, `GCP_DEPLOY_SERVICE_ACCOUNT`, `GCP_PROJECT_ID`, `GCP_REGION`, `GCP_ZONE`, `GCP_VM_NAME`, `GCP_ARTIFACT_REPOSITORY`. On the VM configure the gcloud Docker credential helper and put `REGISTRY=<region>-docker.pkg.dev/<project>/<repository>` in `registry.env`. The VM must be able to fetch the public repository through GitHub.
 
-The Deploy GCP workflow is manual until the first cloud rollout is verified. Run it against `main`. After one successful rollout and rollback rehearsal, add a `push: branches: [main]` trigger; remove the duplicate main-push check from CI and keep CI on PRs. Deployment includes its own backend/AI checks and frontend image build.
+The Deploy GCP workflow runs automatically when application or deployment files change on `main`. It can also be run manually against `main` to redeploy. PRs run CI; main has no duplicate CI workflow. Deployment includes backend/AI checks and the frontend image build. Only the main branch can use the production environment.
 
 `deploy/update.sh` pulls commit-tagged images, takes an online SQLite backup, replaces containers and verifies health. An update failure restores the previous images. Backups are in the database volume and must additionally be copied outside the VM before destructive operations. This flow does not automatically migrate or roll back database schema changes. The initial release has no schema migration.
 

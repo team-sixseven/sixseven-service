@@ -1,6 +1,15 @@
 name: Deploy GCP
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - 'backend/**'
+      - 'inference/**'
+      - 'compose.yaml'
+      - 'deploy/**'
+      - '.github/workflows/deploy.yml'
 permissions:
   contents: read
   id-token: write

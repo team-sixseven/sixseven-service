@@ -603,7 +603,7 @@ export class DemoApp extends Component {
       ['입력값 확인', R.miss && R.miss.length ? 'EMR에 ' + R.miss.join(', ') + ' 값 없음 · 점수 계산 보류' : 'EMR 임상 변수 9개 + 판독 Holter 변수 3개 · 빠진 값 없음 · 대상 조건 확인(기기 이식·심장이식 없음)'],
       ['Holter 지표 확인', '24시간 심실조기수축 ' + vpbN.toLocaleString('ko-KR') + '회 · 심실 커플렛 ' + (R.cpl || 0) + '회 · 비지속성 심실빈맥 ' + (R.nsvt ? '있음' : '없음') + (durShort ? ' · 기록이 ' + MIN_DUR + '시간보다 짧음' : '')],
       ['위험 점수 계산', amVer + ' (로지스틱 회귀 · 변수 12개)로 위험 점수 계산 완료'],
-      ['요인(SHAP) 정리', '변수 12개 중 위험 점수에 영향이 큰 요인 ' + Math.min(3, p.f.length) + '개 정리']
+      ['변수 기여도 정리', '변수 12개 중 위험 점수에 영향이 큰 요인 ' + Math.min(3, p.f.length) + '개 정리']
     ] : [];
     var pg = {
       file: upInfo ? upInfo.file : '', modelText: '모델 ' + amVer, doneCount: progK,
@@ -683,7 +683,7 @@ export class DemoApp extends Component {
         return { name: x[0], src: x[1], hasSrc: x[1] !== '임상', val: x[2], ref: ref, meta: x[1] + ' · ' + x[2],
           valStyle: 'font-size: 18px; font-weight: 400; font-variant-numeric: tabular-nums; color: ' + (up ? '#16191F' : '#646B78') + ';',
           tip: '기준 ' + (ref === '—' ? '없음' : ref) + ' · 기여도 ' + (up ? '+' : '−') + mag.toFixed(2),
-          refText: ref === '—' ? '정해진 기준 없음' : ref, dirText: up ? '위험을 높임' : '위험을 낮춤', srcText: x[1] + ' 정보 · 모델 기여도(SHAP)', popEffStyle: 'color: ' + (up ? '#F4A49B' : '#FFFFFF') + ';', popEffStyleLight: 'white-space: nowrap; font-variant-numeric: tabular-nums; color: ' + (up ? '#B42318' : '#646B78') + ';',
+          refText: ref === '—' ? '정해진 기준 없음' : ref, dirText: up ? '위험을 높임' : '위험을 낮춤', srcText: x[1] + ' 정보 · 선형 모델 기여도(log-odds)', popEffStyle: 'color: ' + (up ? '#F4A49B' : '#FFFFFF') + ';', popEffStyleLight: 'white-space: nowrap; font-variant-numeric: tabular-nums; color: ' + (up ? '#B42318' : '#646B78') + ';',
           aria: x[0] + ', ' + x[2] + ', 참고 기준 ' + (ref === '—' ? '없음' : ref) + ', 기여도 ' + (up ? '+' : '−') + mag.toFixed(2),
           bar: 'position: absolute; top: 3px; bottom: 3px; border-radius: 2px; ' + (up ? 'left: 50%; background: #16191F;' : 'right: 50%; background: #B8BEC8;') + ' width: ' + wpct.toFixed(1) + '%;',
           eff: (up ? '+' : '−') + mag.toFixed(2),
