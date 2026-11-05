@@ -53,7 +53,7 @@ def ingest_report(conn, patient, file_name, duration_h, vpb, couplets, nsvt, fil
     add_log(conn, "판독실", "system", "record.received", "Holter 기록 업로드", patient["id"])
     pos = queue_position(conn, report_id)
     publish("analysis.queued", {"patient_id": patient["id"], "record_id": report_id, "queue_pos": pos,
-                                "short": duration_h < SHORT_HOURS})
+                                "short": 0 < duration_h < SHORT_HOURS})
     wake()
     return {"record_id": report_id, "patient_id": patient["id"], "status": "queued", "queue_pos": pos,
             "received_at": received}
@@ -196,7 +196,7 @@ async def process(report_id: str) -> None:
         await stage("holter", lambda c: set_stage(
             c, report, progress, "holter", "done",
             {"vpb": report["vpb_24h"], "couplets": report["couplets_24h"], "nsvt": bool(report["nsvt"]),
-             "short": report["duration_h"] < SHORT_HOURS}))
+             "short": 0 < report["duration_h"] < SHORT_HOURS}))
 
         if model.PLACEHOLDER and os.environ.get("DEMO_MODE", "").lower() not in ("1", "true", "yes"):
             raise RuntimeError("실제 모델이 설정되지 않았습니다. 모델팀의 모델 파일과 계수가 필요합니다.")

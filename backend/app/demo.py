@@ -156,6 +156,9 @@ def sync_patients(conn) -> dict:
 
 
 def arrive(conn, patient_id: str) -> dict | None:
+    from . import music_data
+    if music_data.enabled():
+        return music_data.arrive(conn, patient_id)
     spec = ARRIVALS.get(patient_id)
     patient = conn.execute("SELECT * FROM patients WHERE id=? AND active=1", (patient_id,)).fetchone()
     if spec is None or patient is None:
@@ -168,6 +171,9 @@ def arrive(conn, patient_id: str) -> dict | None:
 
 def pending_arrivals(conn) -> list[str]:
     """아직 받지 않은 시연 기록의 환자 id (등록된 환자만)."""
+    from . import music_data
+    if music_data.enabled():
+        return music_data.pending(conn)
     todo = []
     for pid in ARRIVALS:
         exists = conn.execute("SELECT 1 FROM patients WHERE id=? AND active=1", (pid,)).fetchone()
@@ -198,6 +204,14 @@ def cancel_scheduled() -> None:
 def start_autoplay() -> bool:
     if _tasks and any(not t.done() for t in _tasks):
         return False
+    from . import music_data
+    if music_data.enabled():
+        with connect() as conn:
+            waiting = music_data.pending(conn)
+        if not waiting:
+            return False
+        schedule([(pid, 8 + i * 12) for i, pid in enumerate(waiting)])
+        return True
     with connect() as conn:
         waiting = [pid for pid, _ in AUTO_ORDER if pid in pending_arrivals(conn)]
     if not waiting:
@@ -214,6 +228,10 @@ def schedule_sync_followup() -> None:
 def full_reset() -> None:
     cancel_scheduled()
     pipeline.bump_generation()
+    from . import music_data
     with connect() as conn:
-        reset_all(conn)
+        if music_data.enabled():
+            music_data.reset_reception(conn)
+        else:
+            reset_all(conn)
     publish("demo.reset", {})
