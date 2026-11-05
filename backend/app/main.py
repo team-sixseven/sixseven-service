@@ -46,7 +46,7 @@ async def reminder_loop() -> None:
     while True:
         await asyncio.sleep(60)
         with connect() as conn:
-            if not music_data.enabled():
+            if not music_data.enabled() or conn.execute("SELECT 1 FROM holter_reports WHERE file_uri LIKE 'music:%' LIMIT 1").fetchone():
                 service.check_reminders(conn)
 
 
@@ -434,8 +434,6 @@ def update_settings(body: SettingsPatch, user: User):
 
 # ---------------------------------------------------------------- 시연 (DEMO_MODE + 관리자)
 def demo_only(user: Admin) -> dict:
-    if music_data.enabled():
-        raise HTTPException(409, "MUSIC 자료에서는 가상 시나리오를 실행하지 않습니다.")
     if not demo.DEMO_MODE:
         raise HTTPException(404, "시연 모드가 꺼져 있습니다.")
     return user
@@ -451,9 +449,14 @@ async def demo_arrive(user: Demo, high: bool = False, patient: str | None = None
         if patient:
             todo = [p for p in todo if p == patient]
         elif high:
-            todo = [p for p in todo if demo.ARRIVALS[p][5]][:1]
+            if music_data.enabled():
+                high_ids = {r["demo_id"] for r in music_data.delivery_order() if r["expected_high_risk"]}
+                todo = [p for p in todo if p in high_ids][:1]
+            else:
+                todo = [p for p in todo if demo.ARRIVALS[p][5]][:1]
         elif not all:
-            order = [p for p, _ in demo.AUTO_ORDER] + demo.SYNC_ORDER
+            order = ([r["demo_id"] for r in music_data.delivery_order()] if music_data.enabled()
+                     else [p for p, _ in demo.AUTO_ORDER] + demo.SYNC_ORDER)
             todo = sorted(todo, key=order.index)[:1]
         return {"arrived": [r for p in todo if (r := demo.arrive(conn, p))]}
 

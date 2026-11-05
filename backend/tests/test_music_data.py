@@ -97,3 +97,38 @@ class MusicImportTests(unittest.TestCase):
             self.assertEqual(conn.execute('SELECT COUNT(*) FROM patients').fetchone()[0],6)
             self.assertEqual(conn.execute('SELECT COUNT(*) FROM music_imports').fetchone()[0],0)
             with self.assertRaises(Exception):conn.execute('DELETE FROM audit_logs')
+
+    def test_reception_reset_and_duplicate_delivery(self):
+        with patch.object(music_data.inference_client,'_predict',side_effect=self.predict): music_data.initialize()
+        with database.connect() as conn:
+            music_data.reset_reception(conn)
+            self.assertEqual(len(music_data.pending(conn)),89)
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM users').fetchone()[0],1)
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM clinical_values').fetchone()[0],89*9)
+            pid=music_data.pending(conn)[0]
+            first=demo.arrive(conn,pid)
+            self.assertEqual(first['status'],'queued')
+            self.assertIsNone(demo.arrive(conn,pid))
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM holter_reports').fetchone()[0],1)
+        # Restart does not repopulate completed results or discard pending records.
+        with patch.object(music_data.inference_client,'_predict') as remote:music_data.initialize();remote.assert_not_called()
+
+    def test_received_data_runs_real_pipeline_and_alert_rule(self):
+        import asyncio
+        from app import pipeline
+        with patch.object(music_data.inference_client,'_predict',side_effect=self.predict):music_data.initialize()
+        with database.connect() as conn:
+            music_data.reset_reception(conn)
+            pids=music_data.pending(conn)[:2]
+            reports=[demo.arrive(conn,pid) for pid in pids]
+        async def prediction(inputs):return self.predict(inputs)
+        async def run():
+            for report in reports:await pipeline.process(report['record_id'])
+        with patch.object(pipeline,'stage_seconds',return_value=0), patch.object(pipeline.inference_client,'predict',side_effect=prediction):
+            asyncio.run(run())
+        with database.connect() as conn:
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM analyses').fetchone()[0],2)
+            alerts=conn.execute('SELECT patient_id FROM alerts').fetchall()
+            self.assertEqual([r['patient_id'] for r in alerts],[pids[1]])
+            for row in conn.execute('SELECT inputs FROM analyses'):
+                self.assertEqual(set(json.loads(row[0])),set(model.KEYS))

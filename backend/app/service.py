@@ -87,7 +87,7 @@ def report_view(conn, row) -> dict | None:
     r["nsvt"] = bool(r["nsvt"])
     r["missing"] = _json(r["missing"], [])
     r["progress"] = _json(r["progress"], {})
-    r["short"] = r["duration_h"] < 20
+    r["short"] = 0 < r["duration_h"] < 20
     if r["status"] == "queued":
         r["queue_pos"] = queue_position(conn, r["id"])
     return r
@@ -139,7 +139,7 @@ def patient_summary(conn, p) -> dict:
         "record_status": status,
     }
     if report is not None:
-        latest.update(record_id=report["id"], duration_h=report["duration_h"], short=report["duration_h"] < 20,
+        latest.update(record_id=report["id"], duration_h=report["duration_h"], short=0 < report["duration_h"] < 20,
                       received_at=report["received_at"], file_name=report["file_name"])
         if status == "held":
             latest["missing"] = _json(report["missing"], [])

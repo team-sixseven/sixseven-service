@@ -105,3 +105,59 @@ def initialize():
 def outcome(conn, patient_id):
     row = conn.execute('SELECT scd FROM music_outcomes WHERE patient_id=?',(patient_id,)).fetchone()
     return None if row is None else {'scd_actual': row['scd'], 'source': 'MUSIC follow-up outcome'}
+
+
+def delivery_order():
+    """Replay reception order; expected class only selects examples, never supplies predictions."""
+    rows = load_rows(os.environ['MUSIC_DATA_PATH'])
+    low = sorted((r for r in rows if not r['expected_high_risk']), key=lambda r:r['expected_score'])
+    high = sorted((r for r in rows if r['expected_high_risk']), key=lambda r:-r['expected_score'])
+    first = [low[0], high[0]]
+    return first + [r for r in rows if r not in first]
+
+
+def pending(conn):
+    return [r['demo_id'] for r in delivery_order() if not conn.execute(
+        'SELECT 1 FROM holter_reports WHERE patient_id=?', (r['demo_id'],)).fetchone()]
+
+
+def arrive(conn, patient_id):
+    # Serialize the eligibility check and insert to prevent manual/autoplay races.
+    conn.execute('BEGIN IMMEDIATE')
+    try:
+        if conn.execute('SELECT 1 FROM holter_reports WHERE patient_id=?',(patient_id,)).fetchone():
+            conn.rollback()
+            return None
+        row = next((r for r in delivery_order() if r['demo_id']==patient_id), None)
+        patient = conn.execute('SELECT * FROM patients WHERE id=? AND active=1',(patient_id,)).fetchone()
+        if row is None or patient is None:
+            conn.rollback()
+            return None
+        result = pipeline.ingest_report(conn, patient, 'MUSIC CSV', 0,
+            row['Holter ventricular premature beats in 24h'], row['Holter ventricular couplets'],
+            row['Holter NSVT (yes=1)'], file_uri='music:'+patient_id)
+        conn.commit()
+        pipeline.wake()
+        return result
+    except Exception:
+        conn.rollback()
+        raise
+
+
+def reset_reception(conn):
+    """Admin-confirmed replay reset: keep accounts, clinical values and cohort identity."""
+    folder = Path(os.environ['MUSIC_DATA_PATH']).parent/'backups'
+    folder.mkdir(exist_ok=True)
+    with sqlite3.connect(folder/('before-replay-'+iso().replace(':','-')+'.sqlite3')) as target:
+        conn.backup(target)
+    conn.execute('BEGIN IMMEDIATE')
+    try:
+        conn.execute('DROP TRIGGER IF EXISTS audit_logs_no_delete')
+        for table in ('audit_logs','alerts','factors','analyses','holter_reports'):
+            conn.execute(f'DELETE FROM {table}')
+        conn.execute("CREATE TRIGGER audit_logs_no_delete BEFORE DELETE ON audit_logs BEGIN SELECT RAISE(ABORT, 'audit_logs is append-only'); END")
+        service.add_log(conn,'관리자','system','music.replay.reset','MUSIC 기록 수신 시연 초기화')
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
