@@ -210,7 +210,7 @@ def start_autoplay() -> bool:
             waiting = music_data.pending(conn)
         if not waiting:
             return False
-        schedule([(pid, 8 + i * 12) for i, pid in enumerate(waiting)])
+        schedule([(pid, 8 + i * 15) for i, pid in enumerate(waiting)])
         return True
     with connect() as conn:
         waiting = [pid for pid, _ in AUTO_ORDER if pid in pending_arrivals(conn)]
