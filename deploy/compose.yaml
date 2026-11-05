@@ -1,0 +1,8 @@
+# Used together with the root compose.yaml after CI publishes immutable images.
+services:
+  backend:
+    image: ${BACKEND_IMAGE:?Set BACKEND_IMAGE}
+  frontend:
+    image: ${FRONTEND_IMAGE:?Set FRONTEND_IMAGE}
+  inference:
+    image: ${INFERENCE_IMAGE:?Set INFERENCE_IMAGE}

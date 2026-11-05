@@ -5,20 +5,18 @@ SCD 위험 알림 구현 설명서 v1.3과 HTML 데모 v2.39를 기준으로 구
 ## 실행
 
 ```sh
-docker compose up --build
+python3 scripts/init_env.py
+docker compose up --build -d --wait
+python3 scripts/smoke.py
 ```
 
-`http://localhost:8080`에서 접속합니다. 기본 설정은 가상 데이터만 사용하는 시연 모드입니다.
+`http://localhost:8080`에서 접속합니다. `.env`는 최초 한 번 생성하며 덮어쓰지 않습니다. 관리자 `admin`, 담당의 `test`, 당직의 `oncall`의 비밀번호는 각각 `.env`의 `ADMIN_PASSWORD`, `ATTENDING_PASSWORD`, `ONCALL_PASSWORD`에서 로컬로 확인합니다. 파일 전체를 공유하지 마세요.
 
-| 역할 | 아이디 | 비밀번호 |
-| --- | --- | --- |
-| 담당의 | test | 1234 |
-| 관리자 | admin | 1234 |
-| 당직의 | oncall | 1234 |
+가상 환자·판독 수치를 실제 모델 API로 계산하는 시연 모드입니다. **원시 Holter 파형을 분석하거나 실시간 부정맥을 검출하지 않습니다.** 모델은 12개 임상·Holter 판독 수치를 사용하는 로지스틱 회귀이며, GPU가 필요 없습니다.
 
-로그인 후 8·12·14초에 판독 결과가 들어오며 한 건씩 분석합니다. EMR 동기화 버튼으로 송은희·문상철을 추가하면 약 4.5초 뒤 두 환자와 박민수 재검사 결과가 들어옵니다. 송은희의 Pro-BNP 누락은 계산 보류와 EMR 재확인으로 시연합니다. 로그아웃하면 시연 데이터를 초기화합니다. 시연 데이터는 모든 로그인 세션이 공유합니다.
+관리자 계정에서 `Shift+D`로 시연 도구를 열고 기록 수신 또는 자동 재생을 시작합니다. 로그인·로그아웃은 다른 사용자의 시연을 초기화하지 않습니다. 공유 데이터 초기화는 관리자 도구에서 확인 후 실행합니다. API 문서는 `/api/docs`입니다.
 
-관리자는 `Shift+D`로 시연 도구를 열 수 있습니다. `Shift+N/H/S/A`는 다음·고위험·선택 환자·전체 판독 수신, `Shift+T`는 30분 경과, `Shift+R`은 초기화입니다. API 문서는 `/api/docs`에 있습니다.
+프론트·백엔드·AI API는 별도 컨테이너입니다. AI API는 내부망에서만 접근하며 서버 간 인증을 사용합니다. SQLite 데이터는 볼륨에 유지됩니다. 중지는 `docker compose down`이며 `-v`를 붙이지 마세요.
 
 ## 개발과 검증
 
@@ -29,15 +27,24 @@ docker compose up --build
 ```sh
 cd backend
 python3 -m venv .venv
-.venv/bin/pip install -r requirements-dev.in
+.venv/bin/pip install -r requirements-dev.in pytest
+# 실제 분석은 Compose의 AI 서버와 연결 설정이 필요합니다.
 DEMO_MODE=true .venv/bin/uvicorn app.main:app --reload
-.venv/bin/python -m unittest discover -s tests -v
+.venv/bin/python -m pytest tests -q
 ```
 
 테스트는 임시 DB에서 보류·재확인, 조치·메모 이력, 과거 검사 읽기 전용, 담당의·당직의 권한, 재알림, 설정 스냅샷 및 실시간 이벤트를 검증합니다.
 
-## 실제 연동이 필요한 부분
+## 모델과 서비스 연결
 
-제공된 ZIP은 화면 목업이며 실제 학습 모델이 포함되어 있지 않습니다. `backend/app/model.py`의 계수·평균·표준편차는 시연용 임시 값입니다. 설명서의 모델 성능 지표는 참고 값이며 이 임시 계산기의 검증 결과가 아닙니다. 점수는 실제 발생 확률이 아닙니다.
+`inference/model.json`은 전달받은 모델의 계수·변환·표준화 통계입니다. AI API는 이를 순수 Python으로 실행하며 입력 오류를 거절합니다. 실제 분석에서 AI 서버가 실패하면 실패로 기록하고 로컬 계산기로 대체하지 않습니다. 초기 시연 기록 생성에만 서비스의 로컬 계산을 사용합니다.
 
-실제 서비스 전환에는 모델 파일·입력 정의·검증 예시, 병원 EMR과 판독실 연동 및 알림 채널 연동이 필요합니다. 현재 앱·문자 발송은 모의 처리입니다. `DEMO_MODE=false`에서는 목업 EMR 조회를 503으로 거절하고, 실제 모델이 준비되지 않은 분석은 실패로 기록합니다. 운영 관리자 생성에는 `ADMIN_PASSWORD` 환경 변수가 필요합니다. 시연 DB와 운영 DB는 별도로 사용해야 합니다.
+점수는 보정되지 않은 0~1 값이며 실제 SCD 발생 확률이 아닙니다. 알림 기준은 서비스 설정의 0.40을 기본으로 사용합니다. 변수 기여도는 변환된 학습 평균을 기준으로 한 log-odds 기여도입니다. 화면의 테스트 성능은 전달받은 학습팀 자료이며 이번 배포 검증으로 새로 산출한 지표가 아닙니다.
+
+원본 모델과 수치 비교는 별도 검증 환경에서 `python scripts/verify_model.py <모델ZIP경로>`로 실행합니다. 이 명령은 신뢰하는 팀 모델 파일만 사용해야 하며 joblib·numpy·pandas·scikit-learn(원본 버전)이 필요합니다. 모델 ZIP과 환자 데이터는 Git에 올리지 않습니다.
+
+실제 병원 EMR·판독실·문자 발송 연동은 포함되지 않습니다. 공개 시연도 가상 데이터만 사용합니다.
+
+## 배포
+
+[GCP 설치·자동 배포 설정](deploy/README.md)을 참고하세요. 배포 작업은 첫 GCP 검증 전에는 수동 실행으로 제공하며, 검증 후 main 자동 배포로 전환합니다.

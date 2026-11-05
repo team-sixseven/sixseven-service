@@ -1,0 +1,43 @@
+name: Deploy GCP
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require main
+        run: test '${{ github.ref }}' = 'refs/heads/main'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r backend/requirements-dev.in pytest
+      - run: PYTHONPATH=backend python -m pytest backend/tests tests -q
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v3
+      - run: gcloud auth configure-docker '${{ vars.GCP_REGION }}-docker.pkg.dev' --quiet
+      - name: Build and publish
+        env:
+          REGISTRY: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_ARTIFACT_REPOSITORY }}
+        run: |
+          docker build -t "$REGISTRY/frontend:$GITHUB_SHA" frontend
+          docker build -t "$REGISTRY/backend:$GITHUB_SHA" backend
+          docker build -t "$REGISTRY/inference:$GITHUB_SHA" -f inference/Dockerfile .
+          for service in frontend backend inference; do docker push "$REGISTRY/$service:$GITHUB_SHA"; done
+      - name: Deploy through IAP
+        env:
+          VM: ${{ vars.GCP_VM_NAME }}
+          ZONE: ${{ vars.GCP_ZONE }}
+          PROJECT: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          gcloud compute ssh "$VM" --zone "$ZONE" --project "$PROJECT" --tunnel-through-iap --command="sudo bash -c 'cd /opt/sixseven-service && git fetch origin main && git checkout --detach $GITHUB_SHA && ./deploy/update.sh $GITHUB_SHA'"

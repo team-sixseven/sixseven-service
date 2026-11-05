@@ -232,7 +232,7 @@ export class DemoApp extends Component {
   demoCur() { this.demoCall('/admin/demo/arrive?patient=' + encodeURIComponent(this.state.sel || ''), '선택한 환자의 시연 기록을 받았습니다.'); }
   demoAll() { this.demoCall('/admin/demo/arrive?all=true', '남은 시연 기록을 모두 받았습니다.'); }
   demoSkip(min) { this.demoCall('/admin/demo/advance?min=' + min, min + '분이 지난 것으로 처리했습니다.'); }
-  demoReset() { this.demoCall('/admin/demo/reset', '처음 상태로 되돌렸습니다.'); }
+  demoReset() { if (!window.confirm('모든 접속자의 시연 데이터를 초기화할까요?')) return; this.demoCall('/admin/demo/reset', '처음 상태로 되돌렸습니다.'); }
   demoAuto(on) { this.setState({ demoAuto: !!on }); this.demoCall('/admin/demo/auto?enabled=' + (on ? 'true' : 'false'), on ? '자동 재생을 켰습니다.' : '자동 재생을 껐습니다.'); }
 
   // ---------------------------------------------------------------- 로그인 · 로그아웃

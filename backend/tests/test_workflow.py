@@ -23,7 +23,9 @@ class WorkflowTests(unittest.TestCase):
         self.demo_mode = patch.object(demo, "DEMO_MODE", True)
         self.demo_mode.start()
         self.autoplay = patch.object(demo, "start_autoplay", return_value=False)
-        self.autoplay.start()
+        self.autoplay_mock = self.autoplay.start()
+        self.inference = patch('app.inference_client.predict', side_effect=model.predict)
+        self.inference_mock = self.inference.start()
         self.client = TestClient(app)
         self.client.__enter__()
         self.headers = {}
@@ -34,6 +36,7 @@ class WorkflowTests(unittest.TestCase):
 
     def tearDown(self):
         self.client.__exit__(None, None, None)
+        self.inference.stop()
         self.autoplay.stop()
         self.demo_mode.stop()
         self.env.stop()
@@ -53,6 +56,22 @@ class WorkflowTests(unittest.TestCase):
         result = self.client.post(f'/api/admin/demo/arrive?patient={pid}', headers=self.headers['admin'])
         self.assertEqual(result.status_code, 200, result.text)
         self.assertEqual(len(result.json()['arrived']), 1)
+
+    def test_logout_preserves_other_session_and_analysis(self):
+        self.autoplay_mock.assert_not_called()
+        self.arrive('v05')
+        before = self.wait_for('v05', 'done')['analysis']['id']
+        self.assertEqual(self.client.post('/api/auth/logout', headers=self.headers['test']).status_code, 204)
+        after = self.client.get('/api/patients/v05', headers=self.headers['admin'])
+        self.assertEqual(after.status_code, 200)
+        self.assertEqual(after.json()['analysis']['id'], before)
+
+    def test_inference_failure_is_recorded(self):
+        self.inference_mock.side_effect = RuntimeError('AI 서버 응답을 확인할 수 없습니다.')
+        self.arrive('v05')
+        failed = self.wait_for('v05', 'failed')
+        self.assertIsNone(failed['record']['analysis_id'])
+        self.assertIn('AI 서버', failed['record']['fail_reason'])
 
     def test_held_recheck_preserves_short_record_warning(self):
         with patch.object(demo, 'schedule_sync_followup'):

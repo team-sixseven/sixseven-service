@@ -51,3 +51,7 @@ uploads/
 *.sqlite
 *.sqlite3
 *.db
+
+registry.env
+deployed-sha
+.deploy.lock

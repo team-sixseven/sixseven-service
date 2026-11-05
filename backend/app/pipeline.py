@@ -3,7 +3,7 @@ import asyncio
 import json
 import os
 
-from . import model
+from . import model, inference_client
 from .database import connect, get_settings, iso, next_id, next_number
 from .events import publish
 from .service import add_log, band_for, create_alert, queue_position
@@ -200,7 +200,7 @@ async def process(report_id: str) -> None:
 
         if model.PLACEHOLDER and os.environ.get("DEMO_MODE", "").lower() not in ("1", "true", "yes"):
             raise RuntimeError("실제 모델이 설정되지 않았습니다. 모델팀의 모델 파일과 계수가 필요합니다.")
-        result = model.predict(inputs)
+        result = await inference_client.predict(inputs)
         await stage("score", lambda c: set_stage(c, report, progress, "score", "done", {"score": result["score"]}))
 
         saved = {}
