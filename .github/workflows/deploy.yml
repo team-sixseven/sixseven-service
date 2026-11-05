@@ -43,6 +43,20 @@ jobs:
           docker build -t "$REGISTRY/backend:$GITHUB_SHA" backend
           docker build -t "$REGISTRY/inference:$GITHUB_SHA" -f inference/Dockerfile .
           for service in frontend backend inference; do docker push "$REGISTRY/$service:$GITHUB_SHA"; done
+      - name: Supply research dataset outside Git
+        env:
+          MUSIC_DATA_GZIP_BASE64: ${{ secrets.MUSIC_DATA_GZIP_BASE64 }}
+          VM: ${{ vars.GCP_VM_NAME }}
+          ZONE: ${{ vars.GCP_ZONE }}
+          PROJECT: ${{ vars.GCP_PROJECT_ID }}
+        shell: bash
+        run: |
+          if [ -z "$MUSIC_DATA_GZIP_BASE64" ]; then exit 0; fi
+          dataset=$(mktemp)
+          trap 'rm -f "$dataset"' EXIT
+          printf '%s' "$MUSIC_DATA_GZIP_BASE64" | base64 -d | gzip -d > "$dataset"
+          gcloud compute scp "$dataset" "$VM:/tmp/sixseven-music89.json" --zone "$ZONE" --project "$PROJECT" --tunnel-through-iap --quiet
+          gcloud compute ssh "$VM" --zone "$ZONE" --project "$PROJECT" --tunnel-through-iap --quiet --command='sudo bash -c '''set -e; folder=$(docker volume inspect sixseven-service_backend-data --format "{{.Mountpoint}}"); install -o 10001 -g 10001 -m 600 /tmp/sixseven-music89.json "$folder/music89.json"; rm /tmp/sixseven-music89.json''''
       - name: Deploy through IAP
         env:
           VM: ${{ vars.GCP_VM_NAME }}

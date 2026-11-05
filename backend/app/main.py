@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager, suppress
 from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel, Field
 
 from . import demo, events, model, pipeline, security, service, inference_client
@@ -39,18 +39,24 @@ def ensure_users() -> None:
                              (uid, username, security.hash_password(password), name, role, dept))
 
 
+from . import music_data
+
+
 async def reminder_loop() -> None:
     while True:
         await asyncio.sleep(60)
         with connect() as conn:
-            service.check_reminders(conn)
+            if not music_data.enabled():
+                service.check_reminders(conn)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.database_path = initialize_database()
     ensure_users()
-    if demo.DEMO_MODE:
+    if music_data.enabled():
+        await asyncio.to_thread(music_data.initialize)
+    elif demo.DEMO_MODE:
         with connect() as conn:
             if conn.execute("SELECT COUNT(*) FROM patients").fetchone()[0] == 0:
                 demo.seed(conn)
@@ -102,7 +108,7 @@ Admin = Annotated[dict, Depends(admin_only)]
 
 def public_user(u: dict) -> dict:
     return {"id": u["id"], "username": u["username"], "name": u["name"], "role": u["role"],
-            "role_label": service.ROLE_LABEL[u["role"]], "dept": u["dept"], "demo_mode": demo.DEMO_MODE}
+            "role_label": service.ROLE_LABEL[u["role"]], "dept": u["dept"], "demo_mode": demo.DEMO_MODE, "data_mode": "music" if music_data.enabled() else "synthetic"}
 
 
 class LoginBody(BaseModel):
@@ -116,7 +122,7 @@ def signup_enabled() -> bool:
 
 @app.get("/api/auth/options", tags=["auth"])
 def auth_options():
-    return {"signup_enabled": signup_enabled()}
+    return {"signup_enabled": signup_enabled(), "data_mode": "music" if music_data.enabled() else "synthetic"}
 
 
 @app.post("/api/auth/signup", tags=["auth"], status_code=201)
@@ -205,6 +211,13 @@ async def readiness(request: Request):
     return {"status": "ready"}
 
 
+@app.get("/api/research-data/download", tags=["research"])
+def research_download():
+    if not music_data.enabled():
+        raise HTTPException(404, "MUSIC 자료가 없습니다.")
+    return FileResponse(os.environ['MUSIC_DATA_PATH'], media_type="application/json", filename="music89-derived.json")
+
+
 @app.get("/api/model", tags=["status"])
 def model_info(user: User):
     return model.MODEL_INFO
@@ -229,6 +242,8 @@ def patient(patient_id: str, user: User):
 
 @app.post("/api/patients/sync", tags=["patients"])
 async def sync_patients(user: User):
+    if music_data.enabled():
+        raise HTTPException(409, "MUSIC 자료에는 EMR 동기화가 없습니다.")
     if not demo.DEMO_MODE:
         raise HTTPException(503, "병원 전산(EMR) 연동이 아직 설정되지 않았습니다.")
     with connect() as conn:
@@ -265,6 +280,8 @@ class HolterBody(BaseModel):
 @app.post("/api/holter", status_code=202, tags=["analysis"])
 async def receive_holter(body: HolterBody, user: Admin):
     """판독실 시스템이 호출합니다. 연동용 계정 역할이 정해질 때까지 관리자 토큰만 허용합니다."""
+    if music_data.enabled():
+        raise HTTPException(409, "MUSIC 자료에는 추가 Holter 기록을 넣을 수 없습니다.")
     with connect() as conn:
         p = conn.execute("SELECT * FROM patients WHERE (id=? OR mrn=?) AND active=1",
                          (body.patient_id, body.patient_id)).fetchone()
@@ -276,6 +293,8 @@ async def receive_holter(body: HolterBody, user: Admin):
 
 @app.post("/api/records/{record_id}/recheck", tags=["analysis"])
 async def recheck(record_id: str, user: User):
+    if music_data.enabled():
+        raise HTTPException(409, "MUSIC 자료에는 EMR 재확인이 없습니다.")
     if not demo.DEMO_MODE:
         raise HTTPException(503, "병원 전산(EMR) 연동이 아직 설정되지 않았습니다.")
     with connect() as conn:
@@ -415,6 +434,8 @@ def update_settings(body: SettingsPatch, user: User):
 
 # ---------------------------------------------------------------- 시연 (DEMO_MODE + 관리자)
 def demo_only(user: Admin) -> dict:
+    if music_data.enabled():
+        raise HTTPException(409, "MUSIC 자료에서는 가상 시나리오를 실행하지 않습니다.")
     if not demo.DEMO_MODE:
         raise HTTPException(404, "시연 모드가 꺼져 있습니다.")
     return user
