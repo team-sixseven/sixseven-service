@@ -1,6 +1,8 @@
 import asyncio
 import os
+import re
 import sqlite3
+import uuid
 from contextlib import asynccontextmanager, suppress
 from typing import Annotated, Literal
 
@@ -108,9 +110,55 @@ class LoginBody(BaseModel):
     password: str = Field(max_length=256)
 
 
+def signup_enabled() -> bool:
+    return demo.DEMO_MODE and os.environ.get("ALLOW_SIGNUP", "false").lower() == "true"
+
+
+@app.get("/api/auth/options", tags=["auth"])
+def auth_options():
+    return {"signup_enabled": signup_enabled()}
+
+
+@app.post("/api/auth/signup", tags=["auth"], status_code=201)
+async def signup(body: LoginBody):
+    if not signup_enabled():
+        raise HTTPException(403, "현재 계정 생성이 허용되지 않습니다.")
+    username = body.username.strip().lower()
+    if not re.fullmatch(r"[a-z0-9][a-z0-9_.-]{2,31}", username):
+        raise HTTPException(422, "아이디는 영문 소문자·숫자·밑줄·점·하이픈으로 3~32자 입력해 주세요.")
+    if len(body.password) < 8 or len(body.password) > 128 or not body.password.strip():
+        raise HTTPException(422, "비밀번호는 8~128자로 입력해 주세요.")
+    if security.signup_locked():
+        raise HTTPException(429, "계정 생성 요청이 많습니다. 잠시 후 다시 시도해 주세요.")
+    security.record_signup_attempt()
+    with connect() as conn:
+        if conn.execute("SELECT 1 FROM users WHERE username=?", (username,)).fetchone():
+            raise HTTPException(409, "이미 사용 중인 아이디입니다.")
+        if conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] >= 100:
+            raise HTTPException(429, "시연 계정 생성 한도에 도달했습니다.")
+    password_hash = await asyncio.to_thread(security.hash_password, body.password)
+    uid = "u-" + uuid.uuid4().hex
+    try:
+        with connect() as conn:
+            # Serialize count and insert, including concurrent signups.
+            conn.execute("BEGIN IMMEDIATE")
+            if conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] >= 100:
+                conn.rollback()
+                raise HTTPException(429, "시연 계정 생성 한도에 도달했습니다.")
+            conn.execute("INSERT INTO users(id, username, password_hash, name, role, dept) VALUES (?,?,?,?,?,?)",
+                         (uid, username, password_hash, username, "attending", "시연"))
+            conn.commit()
+    except sqlite3.IntegrityError as error:
+        raise HTTPException(409, "이미 사용 중인 아이디입니다.") from error
+    with connect() as conn:
+        user = dict(conn.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone())
+    token, expires = security.issue_token(uid)
+    return {"token": token, "expires_at": expires, "user": public_user(user)}
+
+
 @app.post("/api/auth/login", tags=["auth"])
 async def login(body: LoginBody):
-    username = body.username.strip()
+    username = body.username.strip().lower()
     if security.is_locked(username):
         raise HTTPException(429, "로그인 시도가 너무 많습니다. 잠시 뒤에 다시 시도해 주세요.")
     user = await asyncio.to_thread(security.authenticate, username, body.password)
