@@ -19,7 +19,7 @@ export class DemoApp extends Component {
 
   initialState() {
     return {
-      signupEnabled: false, signupMode: false, authError: "", booting: !!getToken(), me: null, dark: (function () { try { return window.localStorage.getItem('scdDark') === '1'; } catch (e) { return false; } })(),
+      dataMode: "synthetic", signupEnabled: false, signupMode: false, authError: "", booting: !!getToken(), me: null, dark: (function () { try { return window.localStorage.getItem('scdDark') === '1'; } catch (e) { return false; } })(),
       tab: 'board', view: 'main', inboxOpen: false, filter: 'all', sel: null, now: Date.now(), exam: null, memoEdit: null, actEdit: null,
       toast: null, toasts: [], tOut: {}, tSeq: 0, draft: {}, cu: null, alertOver: {},
       apiPatients: [], apiQueue: { analyzing: null, queued: [] }, apiSettings: { threshold: 0.4, re_min: 30, esc_min: 60, channels: { app: true, web: true, sms: false } },
@@ -30,7 +30,7 @@ export class DemoApp extends Component {
   componentDidMount() {
     var self = this;
     this.applyDark(!!this.state.dark);
-    api("/auth/options").then(function (res) { self.setState({ signupEnabled: !!res.signup_enabled }); }).catch(function () {});
+    api("/auth/options").then(function (res) { self.setState({ dataMode: res.data_mode, signupEnabled: !!res.signup_enabled }); }).catch(function () {});
     setUnauthorizedHandler(function () { self.resetToLogin(); });
     this._onKey = function (e) {
       if (e.key === 'Escape' && self._esc && self._esc()) { e.preventDefault(); return; }
@@ -74,7 +74,7 @@ export class DemoApp extends Component {
   resetToLogin() {
     setToken(null); this.stopSession();
     if (this._cuI) { clearInterval(this._cuI); this._cuI = null; }
-    this.setState(Object.assign({}, this.initialState(), { booting: false, dark: this.state.dark, lgErr: false, signupEnabled: this.state.signupEnabled }));
+    this.setState(Object.assign({}, this.initialState(), { booting: false, dark: this.state.dark, lgErr: false, signupEnabled: this.state.signupEnabled, dataMode: this.state.dataMode }));
     var self = this; setTimeout(function () { var el = document.getElementById('lgId'); if (el) el.focus(); }, 60);
   }
   onEvent(e) {
@@ -136,7 +136,7 @@ export class DemoApp extends Component {
     (S.apiPatients || []).forEach(function (p) {
       var L = p.latest, det = details[p.id], R = det && det.record;
       var factors = det && det.analysis ? det.analysis.factors.map(function (f) { return [f.name, f.group === 'holter' ? 'Holter' : '임상', f.value_text, f.contribution]; }) : [];
-      P.push({ id: p.id, name: p.name, mrn: p.mrn, meta: p.age + '세 ' + (p.sex === 'M' ? '남' : '여') + ' · NYHA ' + p.nyha, next: p.next_visit ? p.next_visit.slice(5).replace('-', '/') + ' 외래' : '—',
+      P.push({ id: p.id, name: p.name, mrn: me.data_mode === "music" ? "" : p.mrn, meta: p.age + '세 ' + (p.sex === 'M' ? '남' : '여') + ' · NYHA ' + p.nyha, next: p.next_visit ? p.next_visit.slice(5).replace('-', '/') + ' 외래' : '—',
         prob: L.score != null ? L.score : 0, f: factors,
         rec: R ? { file: R.file_name, size: 0, dur: R.duration_h, vpb: R.vpb_24h, cpl: R.couplets_24h, nsvt: R.nsvt, miss: R.missing || [] } : null });
       if (L.analyzed_at) rec[p.id] = ts(L.analyzed_at);
@@ -508,7 +508,7 @@ export class DemoApp extends Component {
       var on = e.cur ? !viewPast : (viewPast && st.exam.i === e.hi), d = new Date(e.t), hiE = ev0 >= th;
       return { date: (d.getFullYear()) + '.' + pad(d.getMonth() + 1) + '.' + pad(d.getDate()), time: pad(d.getHours()) + ':' + pad(d.getMinutes()),
         pct: Math.round(ev0 * 100) + '', diffU: diff != null && diff !== 0, tag: e.cur ? '최신' : '', isCur: !!e.cur,
-        diff: diff == null ? '첫 검사' : (diff > 0 ? '▲ ' + diff : (diff < 0 ? '▼ ' + (-diff) : '변화 없음')),
+        diff: diff == null ? (self.state.me?.data_mode === 'music' ? '첫 분석' : '첫 검사') : (diff > 0 ? '▲ ' + diff : (diff < 0 ? '▼ ' + (-diff) : '변화 없음')),
         diffStyle: 'min-width: 0; font-size: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; color: ' + (diff > 0 ? '#B42318' : '#646B78') + ';',
         ver: e.ver, act: e.act, aria: on ? 'true' : 'false',
         gap: older ? (function () { var dd = Math.round((e.t - older.t) / 86400000); return dd <= 0 ? '당일' : dd + '일 후'; })() : '—',
@@ -598,6 +598,7 @@ export class DemoApp extends Component {
     var progK = st.prog && st.prog.id === p.id ? st.prog.k : (analyzed ? 5 : 0);
     var MIN_DUR = 20, durH = R ? (R.dur || 24) : 24, durShort = !!R && durH < MIN_DUR;
     var durText = Math.floor(durH) + '시간' + (Math.round((durH % 1) * 60) ? ' ' + Math.round((durH % 1) * 60) + '분' : '');
+    if (self.state.me?.data_mode === 'music') durText = '자료 미제공';
     var vpbN = R ? (R.vpb != null ? R.vpb : Math.round(R.pvc * 24)) : 0;
     var stageDefs = R ? [
       ['판독 결과 수신', (upInfo ? fmt(upInfo.at) + ' ' : '') + '판독실 Holter 판독지 수신 · 기록 시간 ' + durText],
@@ -671,7 +672,7 @@ export class DemoApp extends Component {
       pctShown: shown + '점', pctNum: shown + '', bandCls: counting ? '' : 'count-in',
       pendingText: ps === 'analyzing' ? 'Holter 기록을 분석하고 있습니다.' : '다음 Holter 기록이 병원 시스템에 들어오면 자동으로 분석합니다.',
       holter: analyzed ? '24시간 Holter · ' + fmt(recT) + ' 분석' : '',
-      holterShort: analyzed ? fmt(recT) : '', holterTip: analyzed ? '4년 이내 SCD 위험 점수 · 24시간 Holter 기록 · ' + fmt(recT) + ' 분석' : '',
+      holterShort: analyzed ? fmt(recT) : '', holterTip: analyzed ? (self.state.me?.data_mode === 'music' ? 'MUSIC 모델 위험 점수 · 서비스 분석 시각 ' : '4년 이내 SCD 위험 점수 · 24시간 Holter 기록 · ') + fmt(recT) + ' 분석' : '',
       pct: Math.round(p.prob * 100) + '', bandLabel: band(p.prob),
       pctStyle: 'font-size: 44px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; color: ' + (isHi ? hiMix : '#16191F') + ';',
       bandStyle: 'position: relative; top: -.1em; font-size: 18px; font-weight: 600; color: ' + (isHi ? '#B42318' : '#646B78') + '; visibility: ' + (counting ? 'hidden' : 'visible') + ';',
@@ -785,9 +786,9 @@ export class DemoApp extends Component {
       },
       histBtnStyle: 'width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 6px; cursor: pointer; ' + (st.histOpen === p.id ? 'border: 1px solid #D5D9E0; background: #FFFFFF;' : 'border: 1px solid transparent; background: transparent;'),
       histHuman: hhList.map(function (l) { return { t: fmt(l.t), who: l.who, ev: l.ev }; }),
-      histHumanEmpty: !hhList.length, histEmptyText: periodOn ? '이 검사 기간의 의료진 기록이 없습니다.' : '아직 의료진 기록이 없습니다.',
+      histHumanEmpty: !hhList.length, histEmptyText: periodOn ? (self.state.me?.data_mode === 'music' ? '아직 시연 조치 기록이 없습니다.' : '이 검사 기간의 의료진 기록이 없습니다.') : '아직 의료진 기록이 없습니다.',
       hasExRef: !!exRef, logPulseCls: st.logPulse ? (st.logPulse % 2 ? 'lp-a' : 'lp-b') : '',
-      logScope: periodOn ? (function () { var dd = new Date(exRef.t); return dd.getFullYear() + '.' + pad(dd.getMonth() + 1) + '.' + pad(dd.getDate()) + ' 검사 기간' + (exRef.cur ? ' (최신)' : ''); })() : (exRef ? '전체' : ''),
+      logScope: periodOn ? (function () { var dd = new Date(exRef.t); return dd.getFullYear() + '.' + pad(dd.getMonth() + 1) + '.' + pad(dd.getDate()) + (self.state.me?.data_mode === 'music' ? ' 서비스 분석' : ' 검사 기간') + (exRef.cur ? ' (최신)' : ''); })() : (exRef ? '전체' : ''),
       logAllLbl: periodOn ? '전체 기록 보기' : '이 검사 기간만 보기',
       toggleLogAll: function () { self.setState({ logAll: !self.state.logAll }); },
       histSys: st.logs.filter(function (l) { return l.pt === p.name && HUMAN.indexOf(l.who) < 0; }).map(function (l) { return { t: fmt(l.t), who: l.who, ev: l.ev }; }),
@@ -818,7 +819,7 @@ export class DemoApp extends Component {
       listStyle: st.tab === 'board'
         ? 'flex: 0 0 340px; width: 340px; min-width: 0; position: sticky; top: 73px; height: calc(100vh - 73px); margin: -16px 0 0 -32px; display: flex; flex-direction: column; overflow: hidden; background: #FFFFFF; border-right: 1px solid #E4E7EC; box-sizing: border-box'
         : 'flex: 2 1 480px; min-width: 0; background: #FFFFFF; border: 1px solid #E4E7EC; border-radius: 10px; box-sizing: border-box',
-      loggedIn: !!st.user, loggedOut: !st.user, isAdmin: st.user === 'admin', lgErr: !!st.lgErr, authError: st.authError, signupMode: !!st.signupMode, signupEnabled: !!st.signupEnabled,
+      loggedIn: !!st.user, loggedOut: !st.user, isAdmin: st.user === 'admin', lgErr: !!st.lgErr, authError: st.authError, signupMode: !!st.signupMode, musicMode: self.state.me?.data_mode === "music" || self.state.dataMode === "music", signupEnabled: !!st.signupEnabled,
       toggleSignup: function () { if (!st.lgBusy) self.setState({ signupMode: !st.signupMode, lgErr: false, authError: "" }); },
       darkOn: !!st.dark, darkOff: !st.dark, darkAria: st.dark ? 'true' : 'false', darkTip: st.dark ? '라이트 모드' : '다크 모드',
       toggleDark: function () { var d = !self.state.dark; try { window.localStorage.setItem('scdDark', d ? '1' : '0'); } catch (e) {} self.applyDark(d); self.setState({ dark: d }); },
