@@ -46,11 +46,11 @@ export function DemoView({ v }: { v: Vals }) {
     <button type="button" className="hv-icon demo-close" onClick={v.dm.close} aria-label="시연 도구 닫기">×</button>
   </div>
   <div className="demo-tools-actions">
-    <button type="button" className="demo-control" onClick={v.dm.reset}>초기화</button>
+    <button type="button" className="demo-control" onClick={v.dm.reset}><span aria-hidden="true">↻</span>초기화</button>
     <button type="button" className={`demo-control demo-play ${v.dm.auto ? "is-running" : ""}`} onClick={v.dm.toggleAuto} aria-pressed={v.dm.auto} aria-label={v.dm.auto ? "자동 수신 정지" : "자동 수신 재생"}>
       <span aria-hidden="true">{v.dm.auto ? "■" : "▶"}</span>자동 수신
     </button>
-    <button type="button" className="demo-control" onClick={v.dm.toggleExpanded} aria-expanded={v.dm.expanded} aria-controls="demo-extra-controls">{v.dm.expanded ? "접기" : "더보기"}</button>
+    <button type="button" className="demo-control" onClick={v.dm.toggleExpanded} aria-expanded={v.dm.expanded} aria-controls="demo-extra-controls"><span aria-hidden="true">{v.dm.expanded ? "⌃" : "⋯"}</span>{v.dm.expanded ? "접기" : "더보기"}</button>
   </div>
   <div id="demo-extra-controls" className={`demo-tools-body ${v.dm.expanded ? "is-expanded" : ""}`}>
     <div className="demo-extra-grid">
