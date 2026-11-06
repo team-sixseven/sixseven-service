@@ -38,7 +38,7 @@ export class DemoApp extends Component {
       if (!e.shiftKey || e.ctrlKey || e.metaKey || e.altKey || tg === 'INPUT' || tg === 'TEXTAREA' || tg === 'SELECT') return;
       if (!self.state.me || self.state.me.role !== 'admin' || !self.state.me.demo_mode) return;
       var k = e.code;
-      if (k === 'KeyD') { self.setState({ demoPanel: !self.state.demoPanel }); e.preventDefault(); }
+      if (k === 'KeyD') { self.setState({ demoPanel: !self.state.demoPanel, demoExpanded: false, settingsMenuOpen: false }); e.preventDefault(); }
       else if (k === 'KeyN') { self.demoNext(false); e.preventDefault(); }
       else if (k === 'KeyH') { self.demoNext(true); e.preventDefault(); }
       else if (k === 'KeyS') { self.demoCur(); e.preventDefault(); }
@@ -833,7 +833,7 @@ export class DemoApp extends Component {
       doLogin: function () { self.doLogin(); },
       doLogout: function () { self.doLogout(); },
       acctOpen: !!st.acctOpen, acctAria: st.acctOpen ? 'true' : 'false',
-      toggleAcct: function () { if (self.state.acctClosing) return; if (self.state.acctOpen) { self.closeAnim('acctClosing', { acctOpen: false }); } else { self.setState({ acctOpen: true, inboxOpen: false, sbfOpen: false }); } },
+      toggleAcct: function () { if (self.state.acctClosing) return; if (self.state.acctOpen) { self.closeAnim('acctClosing', { acctOpen: false }); } else { self.setState({ acctOpen: true, inboxOpen: false, settingsMenuOpen: false, sbfOpen: false }); } },
       acctAnim: st.acctClosing ? 'inbox-close' : 'inbox-open',
       acctName: (st.me || {}).username || '', acctRole: (st.me || {}).role === 'attending' ? '담당의 · ' + ((st.me || {}).dept || '') : ((st.me || {}).role_label || ''),
       acctIcon: st.user === 'admin' ? '#FFFFFF' : '#16191F',
@@ -857,7 +857,7 @@ export class DemoApp extends Component {
       mailCls: st.toast ? (newCount % 2 ? 'ring-a' : 'ring-b') : '',
       inboxAnim: st.inboxClosing ? 'inbox-close' : 'inbox-open',
       toggleInbox: function () {
-        if (!self.state.inboxOpen) { self.setState({ inboxOpen: true, inboxClosing: false }); return; }
+        if (!self.state.inboxOpen) { self.setState({ inboxOpen: true, inboxClosing: false, settingsMenuOpen: false }); return; }
         if (self.state.inboxClosing) return;
         self.setState({ inboxClosing: true });
         self._timers.push(setTimeout(function () { self.setState({ inboxOpen: false, inboxClosing: false }); }, 230));
@@ -987,7 +987,7 @@ export class DemoApp extends Component {
         return { expanded: !!st.demoExpanded, toggleExpanded: function () { self.setState({ demoExpanded: !self.state.demoExpanded }); }, open: !!st.demoPanel && st.me?.role === 'admin' && !!st.me?.demo_mode, auto: st.demoAuto === true, queueText: '서버가 남은 시연 기록을 순서대로 넣습니다',
           noNext: false, noHigh: false, noAll: false, noCur: false, all: function () { self.demoAll(); }, next: function () { self.demoNext(false); }, high: function () { self.demoNext(true); },
           followup: function () { self.demoCall('/admin/demo/followup', '추이 시연용 후속 기록을 수신했습니다.'); }, cur: function () { self.demoCur(); }, skip: function () { self.demoSkip(30); }, reset: function () { self.demoReset(); },
-          toggleAuto: function (e) { self.demoAuto(e.target.checked); }, close: function () { self.setState({ demoPanel: false }); },
+          toggleAuto: function (e) { self.demoAuto(e.target.checked); }, close: function () { self.setState({ demoPanel: false, demoExpanded: false }); },
           btn: 'min-height: 32px; padding: 2px 12px; border: 1px solid #D5D9E0; background: #FFFFFF; color: #16191F; font-size: 17px; cursor: pointer; text-align: left;',
           kbd: 'font: 500 12px/1 ui-monospace, monospace; color: #646B78; border: 1px solid #E4E7EC; border-radius: 4px; padding: 3px 5px; background: #F7F8FA;' };
       })(),
