@@ -207,7 +207,7 @@ html,body{scrollbar-width:none;-ms-overflow-style:none}html::-webkit-scrollbar,b
 }
 @media(min-width:601px){
   .demo-tools{width:max-content;min-height:0}
-  .demo-tools-actions{grid-template-columns:max-content;flex:none}
+  .demo-tools-actions{grid-template-columns:1fr;flex:none}
   .demo-tools-actions .demo-control{min-width:0;padding:4px 10px}
 }
 
@@ -218,4 +218,3 @@ html,body{scrollbar-width:none;-ms-overflow-style:none}html::-webkit-scrollbar,b
 .demo-tools-bar{background:transparent;border-radius:0;padding:0;gap:12px}
 .demo-tools-title{color:#174EA6;flex:1}
 .demo-close{color:#174EA6;margin-left:auto;width:24px;height:24px}
-.demo-tools-actions{grid-template-columns:1fr}
