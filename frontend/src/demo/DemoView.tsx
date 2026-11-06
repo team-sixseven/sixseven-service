@@ -19,7 +19,7 @@ export function DemoView({ v }: { v: Vals }) {
   <div className="demo-tools-actions">
     <button type="button" className="demo-control" onClick={v.dm.reset}>초기화</button>
     <button type="button" className={`demo-control demo-play ${v.dm.auto ? "is-running" : ""}`} onClick={v.dm.toggleAuto} aria-pressed={v.dm.auto} aria-label={v.dm.auto ? "자동 수신 정지" : "자동 수신 재생"}>
-      <span aria-hidden="true">{v.dm.auto ? "■" : "▶"}</span>{v.dm.auto ? "정지" : "재생"}
+      <span aria-hidden="true">{v.dm.auto ? "■" : "▶"}</span>자동 수신
     </button>
     <button type="button" className="demo-control" onClick={v.dm.toggleExpanded} aria-expanded={v.dm.expanded} aria-controls="demo-extra-controls">{v.dm.expanded ? "접기" : "더보기"}</button>
   </div>
