@@ -109,10 +109,24 @@ html,body{scrollbar-width:none;-ms-overflow-style:none}html::-webkit-scrollbar,b
 .pt-u.pt-big{font-size:.5em;font-weight:inherit;position:relative;top:-.1em;margin-left:.06em}
 .exam-head,.exam-row{grid-template-columns:minmax(104px,1.4fr) minmax(54px,.75fr) minmax(64px,1fr) minmax(48px,.7fr) minmax(0,1fr)!important}
 .toast-mobile-label,.mobile-toast-more{display:none}
+.settings-menu{position:absolute;top:calc(100% + 4px);right:0;z-index:20;min-width:176px;padding:6px;background:#fff;border:1px solid #E4E7EC;border-radius:10px;box-shadow:0 8px 24px #16191f20;display:flex;flex-direction:column}
+.settings-menu>button{border:0;background:transparent;color:#16191F;text-align:left;font-size:16px;padding:10px 12px;min-height:44px;white-space:nowrap;cursor:pointer;border-radius:6px}
+.settings-menu>button:hover{background:#F3F4F6}
+.demo-tools-body{display:flex;flex-direction:column;gap:8px}
+.demo-mobile-auto,.demo-mobile-more{display:none}
 .cmp-head,.cmp-row{grid-template-columns:minmax(0,1fr) minmax(0,1.25fr) minmax(88px,.8fr)!important;padding-right:8px!important;box-sizing:border-box}
 .cmp-head>span:last-child,.cmp-row>span:last-child{padding-right:4px}
 @media(max-width:600px){
   .demo-tools{right:12px!important;bottom:12px!important;max-height:calc(100dvh - 96px)!important}
+  .demo-tools{width:calc(100vw - 24px)!important;max-width:360px!important;padding:8px 10px!important;gap:0!important}
+  .demo-tools>div:first-child{gap:6px}
+  .demo-tools>div:first-child>span{font-size:13px;white-space:nowrap}
+  .demo-tools>div:first-child>button:last-child{flex-shrink:0}
+  .demo-mobile-auto{display:inline-flex;align-items:center;gap:3px;font-size:13px;white-space:nowrap;min-height:36px}
+  .demo-mobile-auto input{width:16px;height:16px;margin:0}
+  .demo-mobile-more{display:block;font-size:13px;border:1px solid #D5D9E0;background:#fff;border-radius:6px;min-height:36px;padding:4px 6px;white-space:nowrap;color:#16191F;cursor:pointer}
+  .demo-tools-body{display:none}
+  .demo-tools-body.is-expanded{display:flex;max-height:40dvh;overflow-y:auto;overscroll-behavior:contain;padding-top:10px}
   .cmp-head,.cmp-row{grid-template-columns:minmax(0,1fr) auto!important;gap:8px 12px!important;padding-left:8px!important;padding-right:12px!important}
   .cmp-head>span:nth-child(2){display:none!important}
   .cmp-head>span:last-child{font-size:13px}
