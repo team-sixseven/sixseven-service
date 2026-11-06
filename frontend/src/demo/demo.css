@@ -199,3 +199,9 @@ html,body{scrollbar-width:none;-ms-overflow-style:none}html::-webkit-scrollbar,b
   .demo-tools-actions{grid-template-columns:1fr;gap:8px;flex:1}
   .demo-tools-actions .demo-control{min-height:36px;font-size:14px}
 }
+@media(min-width:601px){
+  .demo-tools{width:160px;min-height:160px;padding:8px}
+  .demo-tools-bar{margin-bottom:4px}
+  .demo-tools-actions{gap:4px}
+  .demo-tools-actions .demo-control{min-height:32px;font-size:13px;padding:3px 6px}
+}
