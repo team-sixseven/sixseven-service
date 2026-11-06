@@ -205,3 +205,8 @@ html,body{scrollbar-width:none;-ms-overflow-style:none}html::-webkit-scrollbar,b
   .demo-tools-actions{gap:4px}
   .demo-tools-actions .demo-control{min-height:32px;font-size:13px;padding:3px 6px}
 }
+@media(min-width:601px){
+  .demo-tools{width:max-content;min-height:0}
+  .demo-tools-actions{grid-template-columns:max-content;flex:none}
+  .demo-tools-actions .demo-control{min-width:0;padding:4px 10px}
+}
