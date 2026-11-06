@@ -48,7 +48,7 @@ def clear_failures(username: str) -> None:
 
 
 def authenticate(username: str, password: str) -> dict | None:
-    with connect() as conn:
+    with connect(root=True) as conn:
         user = conn.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
     ok = verify_password(password, user["password_hash"] if user else DUMMY_HASH)
     return dict(user) if user and ok else None
@@ -57,7 +57,7 @@ def authenticate(username: str, password: str) -> dict | None:
 def issue_token(user_id: str) -> tuple[str, str]:
     token = secrets.token_urlsafe(32)
     expires = iso(now() + timedelta(hours=TOKEN_HOURS))
-    with connect() as conn:
+    with connect(root=True) as conn:
         conn.execute("DELETE FROM auth_tokens WHERE expires_at < ?", (iso(),))
         conn.execute(
             "INSERT INTO auth_tokens(token, user_id, created_at, expires_at) VALUES (?,?,?,?)",
@@ -69,7 +69,7 @@ def issue_token(user_id: str) -> tuple[str, str]:
 def user_for_token(token: str | None) -> dict | None:
     if not token:
         return None
-    with connect() as conn:
+    with connect(root=True) as conn:
         row = conn.execute(
             "SELECT u.* FROM auth_tokens t JOIN users u ON u.id = t.user_id WHERE t.token=? AND t.expires_at > ?",
             (token, iso()),
@@ -78,7 +78,7 @@ def user_for_token(token: str | None) -> dict | None:
 
 
 def revoke_token(token: str) -> None:
-    with connect() as conn:
+    with connect(root=True) as conn:
         conn.execute("DELETE FROM auth_tokens WHERE token=?", (token,))
 
 

@@ -2,11 +2,27 @@ import json
 import os
 import sqlite3
 from contextlib import closing, contextmanager
+from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 KST = timezone(timedelta(hours=9))
 _db_path: Path | None = None
+_workspace = ContextVar('workspace_database', default=None)
+
+
+def workspace_key():
+    return str(_workspace.get() or _db_path)
+
+
+@contextmanager
+def use_workspace(path):
+    token = _workspace.set(path)
+    try:
+        yield
+    finally:
+        _workspace.reset(token)
+
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
@@ -104,10 +120,10 @@ def check_database(path: Path) -> None:
 
 
 @contextmanager
-def connect():
+def connect(*, root=False):
     """Autocommit connection: every statement is committed immediately."""
     assert _db_path is not None, "database is not initialized"
-    connection = sqlite3.connect(_db_path, timeout=10, isolation_level=None)
+    connection = sqlite3.connect(_db_path if root else (_workspace.get() or _db_path), timeout=10, isolation_level=None)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys=ON")
     try:

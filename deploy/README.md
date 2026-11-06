@@ -21,3 +21,7 @@ The Deploy GCP workflow runs automatically when application or deployment files 
 `deploy/update.sh` pulls commit-tagged images, takes an online SQLite backup, replaces containers and verifies health. An update failure restores the previous images. Backups are in the database volume and must additionally be copied outside the VM before destructive operations. This flow does not automatically migrate or roll back database schema changes. The initial release has no schema migration.
 
 Do not run `docker compose down -v`. Do not rebuild/restart the tunnel during app deployment. Before the presentation, freeze the tested revision and verify the external URL. Remove cloud resources only after saving required backups.
+
+## 계정별 MUSIC 시연
+
+배포 구성은 `ISOLATED_DEMO=true`를 사용합니다. 수신·분석·자동 재생·설정·알림·조치·초기화는 인증된 계정의 데이터에만 적용됩니다. 같은 계정은 기기 간 상태를 공유합니다. `backend-data` 볼륨의 `workspaces/`와 기존 `service.sqlite3`를 함께 보존하며 배포 전 온라인 백업에 두 종류를 포함합니다. 과거 공용 DB는 삭제하지 않습니다. 백엔드는 단일 프로세스로 실행합니다.

@@ -39,7 +39,7 @@ def ensure_users() -> None:
                              (uid, username, security.hash_password(password), name, role, dept))
 
 
-from . import music_data
+from . import music_data, workspaces
 
 
 async def reminder_loop() -> None:
@@ -62,6 +62,7 @@ async def lifespan(app: FastAPI):
                 demo.seed(conn)
     tasks = [asyncio.create_task(pipeline.run_worker()), asyncio.create_task(reminder_loop())]
     yield
+    await workspaces.stop_workers()
     demo.cancel_scheduled()
     for task in tasks:
         task.cancel()
@@ -79,6 +80,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+app.add_middleware(workspaces.WorkspaceMiddleware)
 
 @app.exception_handler(AlertError)
 async def alert_error_handler(_: Request, error: AlertError):
@@ -108,7 +111,7 @@ Admin = Annotated[dict, Depends(admin_only)]
 
 def public_user(u: dict) -> dict:
     return {"id": u["id"], "username": u["username"], "name": u["name"], "role": u["role"],
-            "role_label": service.ROLE_LABEL[u["role"]], "dept": u["dept"], "demo_mode": demo.DEMO_MODE, "data_mode": "music" if music_data.enabled() else "synthetic"}
+            "role_label": service.ROLE_LABEL[u["role"]], "dept": u["dept"], "demo_mode": demo.DEMO_MODE, "personal_demo": workspaces.enabled(), "data_mode": "music" if music_data.enabled() else "synthetic"}
 
 
 class LoginBody(BaseModel):
@@ -433,7 +436,9 @@ def update_settings(body: SettingsPatch, user: User):
 
 
 # ---------------------------------------------------------------- 시연 (DEMO_MODE + 관리자)
-def demo_only(user: Admin) -> dict:
+def demo_only(user: User) -> dict:
+    if user['role'] != 'admin' and not workspaces.enabled():
+        raise HTTPException(403, '관리자만 사용할 수 있습니다.')
     if not demo.DEMO_MODE:
         raise HTTPException(404, "시연 모드가 꺼져 있습니다.")
     return user

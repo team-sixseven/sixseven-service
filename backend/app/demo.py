@@ -5,7 +5,7 @@ import os
 from datetime import timedelta
 
 from . import model, pipeline, service
-from .database import SCHEMA, connect, get_settings, iso, next_id, now
+from .database import workspace_key, SCHEMA, connect, get_settings, iso, next_id, now
 from .events import publish
 
 DEMO_MODE = os.environ.get("DEMO_MODE", "").lower() in ("1", "true", "yes")
@@ -58,6 +58,20 @@ HISTORY = [
 ]
 
 _tasks: list[asyncio.Task] = []
+_workspace_tasks = {}
+
+
+def task_list():
+    from .database import _workspace
+    return _workspace_tasks.setdefault(workspace_key(), []) if _workspace.get() else _tasks
+
+
+def cancel_all_scheduled():
+    for tasks in [_tasks, *_workspace_tasks.values()]:
+        for task in tasks:
+            task.cancel()
+        tasks.clear()
+    _workspace_tasks.clear()
 
 
 def _insert_patient(conn, spec, seq):
@@ -192,18 +206,18 @@ async def _later(delay: float, patient_id: str) -> None:
 
 def schedule(delays: list[tuple[str, float]]) -> None:
     for pid, delay in delays:
-        _tasks.append(asyncio.create_task(_later(delay, pid)))
+        task_list().append(asyncio.create_task(_later(delay, pid)))
 
 
 def cancel_scheduled() -> None:
-    for task in _tasks:
+    for task in task_list():
         task.cancel()
-    _tasks.clear()
+    task_list().clear()
     publish("demo.autoplay", {"enabled": False})
 
 
 def autoplay_active() -> bool:
-    return any(not task.done() for task in _tasks)
+    return any(not task.done() for task in task_list())
 
 
 async def _wait_for_analysis(record_id: str) -> None:
@@ -252,7 +266,7 @@ async def _music_autoplay() -> None:
 
 
 def start_autoplay() -> bool:
-    if _tasks and any(not t.done() for t in _tasks):
+    if any(not t.done() for t in task_list()):
         return False
     from . import music_data
     if music_data.enabled():
@@ -262,7 +276,7 @@ def start_autoplay() -> bool:
         if complete and complete['status'] == 'done':
             publish('demo.focus', {'patient_id': 'T34'})
             return False
-        _tasks.append(asyncio.create_task(_music_autoplay()))
+        task_list().append(asyncio.create_task(_music_autoplay()))
         publish('demo.autoplay', {'enabled': True})
         return True
     with connect() as conn:
