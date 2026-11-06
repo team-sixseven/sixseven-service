@@ -968,7 +968,7 @@ export class DemoApp extends Component {
         self.setState({ added: (self.state.added || []).concat([np]), addOpen: false, addResult: null, addQ: '', sel: np.id, tab: 'board', filter: 'all',
           logs: self.log({ t: T, who: '담당의', pt: r.name, ev: '담당 환자 추가 · 병원 전산에서 정보 불러옴' }) });
       },
-      hasToast: tIds.length > 0, toastMore: tIds.length > 3, toastMoreText: '고위험 알림 ' + (tIds.length - 3) + '건 더 · 알림함에서 확인',
+      hasToast: tIds.length > 0, mobileToastMore: tIds.length > 1, mobileToastMoreText: "추가 알림 " + (tIds.length - 1) + "건 · 알림함 보기", toastMore: tIds.length > 3, toastMoreText: '고위험 알림 ' + (tIds.length - 3) + '건 더 · 알림함에서 확인',
       toastList: tIds.slice(0, 3).map(function (id, k) { var tp = self.find(id), gone = !!(st.tOut || {})[id];
         return { name: tp.name, pct: Math.round(tp.prob * 100) + '', sub: tSub,
           cls: gone ? 'toast-out' : (st.tEv === 'up' ? ((st.tUp || []).indexOf(id) >= 0 ? ((st.tUpSeq || 0) % 2 ? 'toast-up-a' : 'toast-up-b') : '') : (k === 0 ? ((st.tSeq || 0) % 2 ? 'toast-in' : 'toast-in-b') : 'toast-q')),
