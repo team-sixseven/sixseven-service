@@ -1,9 +1,10 @@
 import json
+import asyncio
 import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock
 
 from app import database, model, music_data, service, demo
 
@@ -157,3 +158,54 @@ class MusicImportTests(unittest.TestCase):
         with database.connect() as conn:
             with self.assertRaises(service.AlertError):music_data.add_synthetic_followup(conn)
             self.assertEqual(conn.execute('SELECT COUNT(*) FROM report_inputs').fetchone()[0],0)
+
+    def prepare_autoplay(self):
+        self.rows[0]['demo_id']='T78'
+        self.rows[1]['demo_id']='T34'
+        self.write()
+        with patch.object(music_data.inference_client,'_predict',side_effect=self.predict):
+            music_data.initialize()
+        with database.connect() as conn:
+            music_data.reset_reception(conn)
+
+    def test_autoplay_waits_for_each_analysis_and_stops_at_followup(self):
+        self.prepare_autoplay()
+        received=[]
+        async def finish(record_id):
+            with database.connect() as conn:
+                report=conn.execute('SELECT * FROM holter_reports WHERE id=?',(record_id,)).fetchone()
+                received.append(report['file_uri'])
+                patient=conn.execute('SELECT * FROM patients WHERE id=?',(report['patient_id'],)).fetchone()
+                inputs=music_data.pipeline.gather_inputs(conn,patient,report)
+                music_data.pipeline.save_analysis(conn,report,patient,inputs,self.predict(inputs))
+        async def scenario():
+            with patch.object(demo.asyncio,'sleep',new_callable=AsyncMock) as delay, \
+                 patch.object(demo,'_wait_for_analysis',side_effect=finish), \
+                 patch.object(demo,'publish') as event:
+                self.assertTrue(demo.start_autoplay())
+                self.assertFalse(demo.start_autoplay())
+                await asyncio.gather(*demo._tasks)
+                self.assertFalse(demo.autoplay_active())
+                self.assertEqual([c.args[0] for c in delay.await_args_list],[4,4,4])
+                self.assertEqual(event.call_args_list[-1].args,('demo.autoplay',{'enabled':False}))
+                self.assertFalse(demo.start_autoplay())
+                self.assertEqual(event.call_args_list[-1].args,('demo.focus',{'patient_id':'T34'}))
+            demo._tasks.clear()
+        asyncio.run(scenario())
+        self.assertEqual(received,['music:T78','music:T34',music_data.SYNTHETIC_FOLLOWUP_URI])
+        with database.connect() as conn:
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM holter_reports').fetchone()[0],3)
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM analyses WHERE patient_id='T34'").fetchone()[0],2)
+
+    def test_autoplay_failure_does_not_receive_next_patient(self):
+        self.prepare_autoplay()
+        async def scenario():
+            with patch.object(demo.asyncio,'sleep',new_callable=AsyncMock), \
+                 patch.object(demo,'_wait_for_analysis',side_effect=RuntimeError('분석 실패')), \
+                 patch.object(demo,'publish') as event:
+                await demo._music_autoplay()
+                self.assertIn('demo.autoplay.error',[c.args[0] for c in event.call_args_list])
+                self.assertEqual(event.call_args_list[-1].args,('demo.autoplay',{'enabled':False}))
+        asyncio.run(scenario())
+        with database.connect() as conn:
+            self.assertEqual([r[0] for r in conn.execute('SELECT file_uri FROM holter_reports')],['music:T78'])

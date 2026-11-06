@@ -485,12 +485,18 @@ async def demo_reset(user: Demo):
     return {"ok": True}
 
 
+@app.get("/api/admin/demo/auto", tags=["demo"])
+async def demo_auto_status(user: Demo):
+    return {"enabled": demo.autoplay_active()}
+
+
 @app.post("/api/admin/demo/auto", tags=["demo"])
 async def demo_auto(user: Demo, enabled: bool = True):
     if enabled:
-        return {"started": demo.start_autoplay()}
+        started = demo.start_autoplay()
+        return {"started": started, "enabled": demo.autoplay_active()}
     demo.cancel_scheduled()
-    return {"started": False}
+    return {"started": False, "enabled": False}
 
 
 # ---------------------------------------------------------------- 실시간

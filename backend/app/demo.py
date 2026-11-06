@@ -199,6 +199,56 @@ def cancel_scheduled() -> None:
     for task in _tasks:
         task.cancel()
     _tasks.clear()
+    publish("demo.autoplay", {"enabled": False})
+
+
+def autoplay_active() -> bool:
+    return any(not task.done() for task in _tasks)
+
+
+async def _wait_for_analysis(record_id: str) -> None:
+    deadline = asyncio.get_running_loop().time() + 180
+    while True:
+        with connect() as conn:
+            row = conn.execute("SELECT status FROM holter_reports WHERE id=?", (record_id,)).fetchone()
+        if row is None or row['status'] in ('held', 'failed'):
+            raise RuntimeError('분석이 보류되거나 실패하여 자동 수신을 멈췄습니다.')
+        if row['status'] == 'done':
+            return
+        if asyncio.get_running_loop().time() >= deadline:
+            raise RuntimeError('분석 완료 대기 시간이 초과되었습니다.')
+        await asyncio.sleep(0.5)
+
+
+async def _music_autoplay() -> None:
+    from . import music_data
+    try:
+        for patient_id, uri in [('T78', 'music:T78'), ('T34', 'music:T34'),
+                                ('T34', music_data.SYNTHETIC_FOLLOWUP_URI)]:
+            with connect() as conn:
+                record = conn.execute('SELECT id,status FROM holter_reports WHERE file_uri=?', (uri,)).fetchone()
+            if record and record['status'] == 'done':
+                continue
+            # The next arrival follows completion, not a fixed inference-duration assumption.
+            await asyncio.sleep(4)
+            publish('demo.focus', {'patient_id': patient_id})
+            if not record:
+                with connect() as conn:
+                    if uri == music_data.SYNTHETIC_FOLLOWUP_URI:
+                        music_data.add_synthetic_followup(conn)
+                    else:
+                        music_data.arrive(conn, patient_id)
+                    record = conn.execute('SELECT id,status FROM holter_reports WHERE file_uri=?', (uri,)).fetchone()
+                if record is None:
+                    raise RuntimeError('시연 기록을 수신하지 못했습니다.')
+            await _wait_for_analysis(record['id'])
+        publish('demo.focus', {'patient_id': 'T34'})
+    except asyncio.CancelledError:
+        raise
+    except Exception as error:
+        publish('demo.autoplay.error', {'message': str(error)})
+    finally:
+        publish('demo.autoplay', {'enabled': False})
 
 
 def start_autoplay() -> bool:
@@ -207,10 +257,13 @@ def start_autoplay() -> bool:
     from . import music_data
     if music_data.enabled():
         with connect() as conn:
-            waiting = music_data.pending(conn)
-        if not waiting:
+            complete = conn.execute('SELECT status FROM holter_reports WHERE file_uri=?',
+                                    (music_data.SYNTHETIC_FOLLOWUP_URI,)).fetchone()
+        if complete and complete['status'] == 'done':
+            publish('demo.focus', {'patient_id': 'T34'})
             return False
-        schedule([(pid, 8 + i * 15) for i, pid in enumerate(waiting)])
+        _tasks.append(asyncio.create_task(_music_autoplay()))
+        publish('demo.autoplay', {'enabled': True})
         return True
     with connect() as conn:
         waiting = [pid for pid, _ in AUTO_ORDER if pid in pending_arrivals(conn)]
