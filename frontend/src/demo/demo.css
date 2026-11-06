@@ -193,3 +193,9 @@ html,body{scrollbar-width:none;-ms-overflow-style:none}html::-webkit-scrollbar,b
 .demo-tools-actions .demo-control{display:flex;align-items:center;justify-content:center;gap:6px;min-height:36px}
 .demo-play{background:#2563EB;border-color:#2563EB;color:#fff;font-weight:600}
 .demo-play.is-running{background:#B42318;border-color:#B42318}
+@media(min-width:601px){
+  .demo-tools{width:232px;min-height:232px;padding:12px;display:flex;flex-direction:column}
+  .demo-tools-bar{margin-bottom:10px}
+  .demo-tools-actions{grid-template-columns:1fr;gap:8px;flex:1}
+  .demo-tools-actions .demo-control{min-height:44px;font-size:15px}
+}
