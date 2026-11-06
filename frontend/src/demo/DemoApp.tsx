@@ -23,7 +23,7 @@ export class DemoApp extends Component {
       tab: 'board', view: 'main', inboxOpen: false, filter: 'all', sel: null, now: Date.now(), exam: null, memoEdit: null, actEdit: null,
       toast: null, toasts: [], tOut: {}, tSeq: 0, draft: {}, cu: null, alertOver: {},
       apiPatients: [], apiQueue: { analyzing: null, queued: [] }, apiSettings: { threshold: 0.4, re_min: 30, esc_min: 60, channels: { app: true, web: true, sms: false } },
-      apiLogs: [], details: {}, analyses: {}, modelInfo: null, loaded: false,
+      apiLogs: [], details: {}, analyses: {}, modelInfo: null, loaded: false, demoPanel: false, demoAuto: false,
     };
   }
 
@@ -981,7 +981,7 @@ export class DemoApp extends Component {
       toastSub: (function () { var c = st.ch, o = []; if (c.app) o.push('휴대폰 앱'); if (c.sms) o.push('문자'); return 'Holter 분석이 끝났습니다.' + (o.length ? ' ' + o.join('·') + (o[o.length - 1] === '문자' ? '로도' : '으로도') + ' 발송했습니다.' : ''); })(),
       toastCls: st.toastOut ? 'toast-out' : 'toast-in',
       dm: (function () {
-        return { open: !!st.demoPanel, auto: st.demoAuto === true, queueText: '서버가 남은 시연 기록을 순서대로 넣습니다',
+        return { open: !!st.demoPanel && st.me?.role === 'admin' && !!st.me?.demo_mode, auto: st.demoAuto === true, queueText: '서버가 남은 시연 기록을 순서대로 넣습니다',
           noNext: false, noHigh: false, noAll: false, noCur: false, all: function () { self.demoAll(); }, next: function () { self.demoNext(false); }, high: function () { self.demoNext(true); },
           followup: function () { self.demoCall('/admin/demo/followup', '추이 시연용 후속 기록을 수신했습니다.'); }, cur: function () { self.demoCur(); }, skip: function () { self.demoSkip(30); }, reset: function () { self.demoReset(); },
           toggleAuto: function (e) { self.demoAuto(e.target.checked); }, close: function () { self.setState({ demoPanel: false }); },
