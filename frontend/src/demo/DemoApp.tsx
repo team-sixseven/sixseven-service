@@ -123,7 +123,7 @@ export class DemoApp extends Component {
           await Promise.all(need.map(async function (aid) { try { ana[aid] = await api('/analyses/' + aid); } catch (e) { /* 무시 */ } }));
           var namedLogs = res[3].items.map(function (l) { var p = pl.find(function (p) { return p.id === l.patient_id; }); return p ? Object.assign({}, l, { patient_name: p.name }) : l; });
           var next = { apiPatients: pl, apiQueue: res[1], apiSettings: res[2], apiLogs: namedLogs, details: details, analyses: ana, loaded: true };
-          if (res[4]) next.demoAuto = !!res[4].enabled;
+          if (res[4]) { next.demoAuto = !!res[4].enabled; next.remainingRecords = res[4].remaining; }
           if (!self.state.sel && pl.length) {
             var first = pl.filter(function (p) { return p.alert && p.alert.status !== 'done'; })[0] || pl[0];
             next.sel = first.id;
@@ -223,6 +223,15 @@ export class DemoApp extends Component {
   sync() {
     var self = this;
     if (this.state.syncing) return;
+    if (this.state.me?.data_mode === 'music') {
+      if (this.state.me.role !== 'admin' || !this.state.me.demo_mode || !this.state.remainingRecords) return;
+      this.setState({ syncing: true });
+      api('/admin/demo/arrive', { method: 'POST' }).then(function (r) {
+        self.showMsg(r.arrived.length ? 'MUSIC 기록 한 건을 수신했습니다. 자동 분석을 시작합니다.' : '남은 MUSIC 기록이 없습니다.');
+        return self.refresh();
+      }).catch(function (e) { self.showMsg(e.message); }).finally(function () { self.setState({ syncing: false }); });
+      return;
+    }
     this.setState({ syncing: true });
     api('/patients/sync', { method: 'POST' }).then(function (r) {
       var n = r.added.length;
@@ -922,7 +931,9 @@ export class DemoApp extends Component {
       resetSb: function () { self.setState({ sortKey: 'prio', sbQ: '', sbsOpen: false, sbfOpen: false, sortTick: (self.state.sortTick || 0) + 1 }); },
       resetItemStyle: 'display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 4px 12px; border: none; border-radius: 10px; background: transparent; font-size: 17px; text-align: left; ' + (sortKey !== 'prio' || sq ? 'color: #B42318; cursor: pointer;' : 'color: #8A919E; cursor: default;'),
       doSync: function () { self.sync(); }, syncCls: st.syncing ? 'sync-spin' : '', syncAria: st.syncing ? 'true' : 'false',
-      syncTip: st.syncing ? '동기화 중…' : '환자 목록 동기화 · 마지막 ' + (function (d) { return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); })(new Date(st.lastSync || st.now || Date.now())),
+      syncLabel: st.me?.data_mode === 'music' ? '다음 기록 수신' : '환자 목록 동기화',
+      syncDisabled: !!st.syncing || (st.me?.data_mode === 'music' && (st.me.role !== 'admin' || !st.me.demo_mode || !st.remainingRecords)),
+      syncTip: st.me?.data_mode === 'music' ? (st.me.role !== 'admin' ? '다음 기록 수신 · 관리자 전용' : st.syncing ? '기록 수신 중…' : st.remainingRecords ? '다음 MUSIC 기록 수신 · 남은 ' + st.remainingRecords + '건' : '남은 MUSIC 기록 없음') : (st.syncing ? '동기화 중…' : '환자 목록 동기화'),
       hasSyncMsg: !!st.syncMsg, syncMsg: st.syncMsg || '', syncMsgCls: st.syncMsgOut ? 'snack-out' : 'snack-in',
       sbfBtnStyle: 'width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; border-radius: 12px; cursor: pointer; ' + (st.sbfOpen ? 'border: 1px solid #16191F; background: #FFFFFF;' : 'border: 1px solid #E4E7EC; background: #FFFFFF;'),
       sbsHidden: (st.sbsOpen || sbQ) ? 'false' : 'true',
