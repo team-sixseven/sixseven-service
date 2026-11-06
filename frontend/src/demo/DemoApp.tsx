@@ -4,6 +4,7 @@
 import { Component } from 'react';
 import { api, connectEvents, getToken, setToken, setUnauthorizedHandler } from '../api';
 import { DemoView } from './DemoView';
+import { patientDisplayName } from './patientNames';
 import './demo.css';
 
 const M = 60000;
@@ -112,7 +113,7 @@ export class DemoApp extends Component {
         try {
           var me = self.state.me, admin = me.role === 'admin';
           var res = await Promise.all([api('/patients'), api('/queue'), api('/settings'), api('/logs?kind=' + (admin ? 'all' : 'human') + '&limit=500'), admin ? api('/admin/demo/auto').catch(function () { return null; }) : Promise.resolve(null)]);
-          var pl = res[0], want = {};
+          var pl = res[0].map(function (p) { return Object.assign({}, p, { name: patientDisplayName(p, me.data_mode === 'music') }); }), want = {};
           if (self.state.sel) want[self.state.sel] = true;
           pl.forEach(function (p) { if (p.alert && p.alert.status !== 'done') want[p.id] = true; });
           var details = {};
@@ -120,7 +121,8 @@ export class DemoApp extends Component {
           var ana = Object.assign({}, self.state.analyses), need = [];
           Object.keys(details).forEach(function (id) { details[id].exams.forEach(function (x) { if (!x.latest && !ana[x.analysis_id]) need.push(x.analysis_id); }); });
           await Promise.all(need.map(async function (aid) { try { ana[aid] = await api('/analyses/' + aid); } catch (e) { /* 무시 */ } }));
-          var next = { apiPatients: pl, apiQueue: res[1], apiSettings: res[2], apiLogs: res[3].items, details: details, analyses: ana, loaded: true };
+          var namedLogs = res[3].items.map(function (l) { var p = pl.find(function (p) { return p.id === l.patient_id; }); return p ? Object.assign({}, l, { patient_name: p.name }) : l; });
+          var next = { apiPatients: pl, apiQueue: res[1], apiSettings: res[2], apiLogs: namedLogs, details: details, analyses: ana, loaded: true };
           if (res[4]) next.demoAuto = !!res[4].enabled;
           if (!self.state.sel && pl.length) {
             var first = pl.filter(function (p) { return p.alert && p.alert.status !== 'done'; })[0] || pl[0];
@@ -140,7 +142,7 @@ export class DemoApp extends Component {
     (S.apiPatients || []).forEach(function (p) {
       var L = p.latest, det = details[p.id], R = det && det.record;
       var factors = det && det.analysis ? det.analysis.factors.map(function (f) { return [f.name, f.group === 'holter' ? 'Holter' : '임상', f.value_text, f.contribution]; }) : [];
-      P.push({ id: p.id, name: p.name, mrn: me.data_mode === "music" ? "" : p.mrn, meta: p.age + '세 ' + (p.sex === 'M' ? '남' : '여') + ' · NYHA ' + p.nyha, next: p.next_visit ? p.next_visit.slice(5).replace('-', '/') + ' 외래' : '—',
+      P.push({ id: p.id, name: p.name, mrn: me.data_mode === "music" ? p.id + ' · 가명' : p.mrn, meta: p.age + '세 ' + (p.sex === 'M' ? '남' : '여') + ' · NYHA ' + p.nyha, next: p.next_visit ? p.next_visit.slice(5).replace('-', '/') + ' 외래' : '—',
         prob: L.score != null ? L.score : 0, f: factors,
         rec: R ? { file: R.file_name, size: 0, dur: R.duration_h, vpb: R.vpb_24h, cpl: R.couplets_24h, nsvt: R.nsvt, miss: R.missing || [] } : null });
       if (L.analyzed_at) rec[p.id] = ts(L.analyzed_at);
@@ -987,7 +989,7 @@ export class DemoApp extends Component {
         return { expanded: !!st.demoExpanded, toggleExpanded: function () { self.setState({ demoExpanded: !self.state.demoExpanded }); }, open: !!st.demoPanel && st.me?.role === 'admin' && !!st.me?.demo_mode, auto: st.demoAuto === true, queueText: '서버가 남은 시연 기록을 순서대로 넣습니다',
           noNext: false, noHigh: false, noAll: false, noCur: false, all: function () { self.demoAll(); }, next: function () { self.demoNext(false); }, high: function () { self.demoNext(true); },
           followup: function () { self.demoCall('/admin/demo/followup', '추이 시연용 후속 기록을 수신했습니다.'); }, cur: function () { self.demoCur(); }, skip: function () { self.demoSkip(30); }, reset: function () { self.demoReset(); },
-          toggleAuto: function (e) { self.demoAuto(e.target.checked); }, close: function () { self.setState({ demoPanel: false, demoExpanded: false }); },
+          toggleAuto: function () { self.demoAuto(!self.state.demoAuto); }, close: function () { self.setState({ demoPanel: false, demoExpanded: false }); },
           btn: 'min-height: 32px; padding: 2px 12px; border: 1px solid #D5D9E0; background: #FFFFFF; color: #16191F; font-size: 17px; cursor: pointer; text-align: left;',
           kbd: 'font: 500 12px/1 ui-monospace, monospace; color: #646B78; border: 1px solid #E4E7EC; border-radius: 4px; padding: 3px 5px; background: #F7F8FA;' };
       })(),
