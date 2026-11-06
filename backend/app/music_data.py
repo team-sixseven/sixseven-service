@@ -188,3 +188,34 @@ def add_synthetic_followup(conn):
     except Exception:
         conn.rollback()
         raise
+
+
+def manual_remaining(conn):
+    count = len(pending(conn))
+    if conn.execute("SELECT 1 FROM patients WHERE id='T34'").fetchone() and not conn.execute(
+            'SELECT 1 FROM holter_reports WHERE file_uri=?', (SYNTHETIC_FOLLOWUP_URI,)).fetchone():
+        count += 1
+    return count
+
+
+def receive_next(conn):
+    """Receive one example, prioritizing the same trend sequence as autoplay."""
+    from .events import publish
+    for pid in ('T78', 'T34'):
+        if pid in pending(conn):
+            result = arrive(conn, pid)
+            if result:
+                publish('demo.focus', {'patient_id': pid})
+            return result
+    if conn.execute("SELECT 1 FROM patients WHERE id='T34'").fetchone() and not conn.execute(
+            'SELECT 1 FROM holter_reports WHERE file_uri=?', (SYNTHETIC_FOLLOWUP_URI,)).fetchone():
+        result = add_synthetic_followup(conn)
+        publish('demo.focus', {'patient_id': 'T34'})
+        return result
+    todo = pending(conn)
+    if not todo:
+        return None
+    result = arrive(conn, todo[0])
+    if result:
+        publish('demo.focus', {'patient_id': todo[0]})
+    return result
