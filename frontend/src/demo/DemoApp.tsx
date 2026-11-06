@@ -59,7 +59,7 @@ export class DemoApp extends Component {
     this.stopSession(); this._timers.forEach(function (t) { clearTimeout(t); clearInterval(t); }); this._lockScroll(false);
   }
 
-  componentDidUpdate(prev) { if (prev.sel !== this.state.sel && this.state.me) this.refresh(); }
+  componentDidUpdate(_prevProps, prevState) { if (prevState.sel !== this.state.sel && this.state.me) this.refresh(); }
 
   // ---------------------------------------------------------------- 세션 · 실시간
   startSession() {
@@ -83,7 +83,10 @@ export class DemoApp extends Component {
       var ids = [d.patient_id].concat((this.state.toasts || []).filter(function (x) { return x !== d.patient_id; }));
       this.setState({ toast: d.patient_id, toasts: ids, tEv: 'new', tSeq: (this.state.tSeq || 0) + 1 });
       this._timers.push(setTimeout(function () { if (self.state.toast === d.patient_id) self.setState({ toast: null }); }, 4000));
-    } else if (e.type === 'demo.reset') this.setState({ toasts: [], toast: null, exam: null, sel: null, alertOver: {} });
+    } else if (e.type === 'demo.reset') this.setState({ toasts: [], toast: null, exam: null, sel: null, alertOver: {}, demoAuto: false });
+    else if (e.type === 'demo.focus') this.setState({ sel: d.patient_id, exam: null, logAll: false });
+    else if (e.type === 'demo.autoplay') this.setState({ demoAuto: !!d.enabled });
+    else if (e.type === 'demo.autoplay.error') this.showMsg(d.message);
     else if (e.type === 'analysis.queued') this.showMsg('판독실에서 ' + this.nameOf(d.patient_id) + ' 판독 결과가 들어왔습니다. 순서대로 분석합니다.');
     else if (e.type === 'alert.reminded') this.showMsg('확인하지 않은 알림을 다시 알렸습니다.');
     else if (e.type === 'alert.escalated') this.showMsg('확인하지 않은 알림을 당직의에게 전달했습니다.');
@@ -108,7 +111,7 @@ export class DemoApp extends Component {
         self._again = false;
         try {
           var me = self.state.me, admin = me.role === 'admin';
-          var res = await Promise.all([api('/patients'), api('/queue'), api('/settings'), api('/logs?kind=' + (admin ? 'all' : 'human') + '&limit=500')]);
+          var res = await Promise.all([api('/patients'), api('/queue'), api('/settings'), api('/logs?kind=' + (admin ? 'all' : 'human') + '&limit=500'), admin ? api('/admin/demo/auto').catch(function () { return null; }) : Promise.resolve(null)]);
           var pl = res[0], want = {};
           if (self.state.sel) want[self.state.sel] = true;
           pl.forEach(function (p) { if (p.alert && p.alert.status !== 'done') want[p.id] = true; });
@@ -118,6 +121,7 @@ export class DemoApp extends Component {
           Object.keys(details).forEach(function (id) { details[id].exams.forEach(function (x) { if (!x.latest && !ana[x.analysis_id]) need.push(x.analysis_id); }); });
           await Promise.all(need.map(async function (aid) { try { ana[aid] = await api('/analyses/' + aid); } catch (e) { /* 무시 */ } }));
           var next = { apiPatients: pl, apiQueue: res[1], apiSettings: res[2], apiLogs: res[3].items, details: details, analyses: ana, loaded: true };
+          if (res[4]) next.demoAuto = !!res[4].enabled;
           if (!self.state.sel && pl.length) {
             var first = pl.filter(function (p) { return p.alert && p.alert.status !== 'done'; })[0] || pl[0];
             next.sel = first.id;
@@ -234,7 +238,7 @@ export class DemoApp extends Component {
   demoAll() { this.demoCall('/admin/demo/arrive?all=true', '남은 시연 기록을 모두 받았습니다.'); }
   demoSkip(min) { this.demoCall('/admin/demo/advance?min=' + min, min + '분이 지난 것으로 처리했습니다.'); }
   demoReset() { if (!window.confirm('모든 접속자의 시연 데이터를 초기화할까요?')) return; this.demoCall('/admin/demo/reset', '처음 상태로 되돌렸습니다.'); }
-  demoAuto(on) { this.setState({ demoAuto: !!on }); this.demoCall('/admin/demo/auto?enabled=' + (on ? 'true' : 'false'), on ? '자동 재생을 켰습니다.' : '자동 재생을 껐습니다.'); }
+  demoAuto(on) { var self = this; api('/admin/demo/auto?enabled=' + (on ? 'true' : 'false'), { method: 'POST' }).then(function (r) { self.setState({ demoAuto: !!r.enabled }); self.showMsg(r.enabled ? 'T78 → T34 → 후속 검사 순서로 수신합니다.' : (on ? '시연 분석이 완료되었습니다. T34에서 추이를 확인하세요. 다시 보려면 처음 상태로 초기화하세요.' : '자동 수신을 멈췄습니다.')); self.refresh(); }).catch(function (e) { self.showMsg(e.message); }); }
 
   // ---------------------------------------------------------------- 로그인 · 로그아웃
   doLogin() {
