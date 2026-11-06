@@ -230,3 +230,5 @@ html,body{scrollbar-width:none;-ms-overflow-style:none}html::-webkit-scrollbar,b
   .demo-tools-actions .demo-control{font-size:13px;padding:4px 8px}
 }
 .demo-play,.demo-play.is-running{background:#fff;border-color:#D5D9E0;color:#16191F;font-weight:400}
+
+button.sb-hide:disabled{opacity:.45;cursor:not-allowed!important}

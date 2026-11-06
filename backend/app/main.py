@@ -487,7 +487,8 @@ async def demo_reset(user: Demo):
 
 @app.get("/api/admin/demo/auto", tags=["demo"])
 async def demo_auto_status(user: Demo):
-    return {"enabled": demo.autoplay_active()}
+    with connect() as conn:
+        return {"enabled": demo.autoplay_active(), "remaining": len(demo.pending_arrivals(conn))}
 
 
 @app.post("/api/admin/demo/auto", tags=["demo"])

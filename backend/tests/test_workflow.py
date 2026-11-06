@@ -52,6 +52,21 @@ class WorkflowTests(unittest.TestCase):
             time.sleep(.01)
         self.fail(f'{pid} did not reach {status}: {detail}')
 
+    def test_next_record_updates_remaining_and_does_not_duplicate(self):
+        def remaining():
+            return self.client.get('/api/admin/demo/auto', headers=self.headers['admin']).json()['remaining']
+        before = remaining()
+        first = self.client.post('/api/admin/demo/arrive', headers=self.headers['admin'])
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(len(first.json()['arrived']), 1)
+        self.assertEqual(remaining(), before - 1)
+        while remaining():
+            response = self.client.post('/api/admin/demo/arrive', headers=self.headers['admin'])
+            self.assertEqual(len(response.json()['arrived']), 1)
+        response = self.client.post('/api/admin/demo/arrive', headers=self.headers['admin'])
+        self.assertEqual(response.json()['arrived'], [])
+        self.assertEqual(remaining(), 0)
+
     def arrive(self, pid):
         result = self.client.post(f'/api/admin/demo/arrive?patient={pid}', headers=self.headers['admin'])
         self.assertEqual(result.status_code, 200, result.text)
