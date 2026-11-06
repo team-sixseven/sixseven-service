@@ -223,3 +223,9 @@ html,body{scrollbar-width:none;-ms-overflow-style:none}html::-webkit-scrollbar,b
   .demo-tools-bar{margin-bottom:8px}
   .demo-tools-actions{gap:6px}
 }
+@media(max-width:600px){
+  .demo-tools{width:max-content;max-width:calc(100vw - 24px);padding:8px}
+  .demo-tools-actions{grid-template-columns:repeat(3,max-content);gap:5px}
+  .demo-tools-title{font-size:14px;max-width:none}
+  .demo-tools-actions .demo-control{font-size:13px;padding:4px 8px}
+}
