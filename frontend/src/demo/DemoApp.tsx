@@ -893,6 +893,8 @@ export class DemoApp extends Component {
         self.setState({ models: ms, pend: null, logs: self.log({ t: T, who: '관리자', pt: '—', ev: '모델 등록 · ' + String(pd.ver).trim() + ' (' + pd.file + ')' }) });
       },
       closeModel: function () { self.closeAnim('modelClosing', { modelOpen: false }); },
+      canDemoTools: !!st.me && st.me.role === "admin" && !!st.me.demo_mode,
+      openDemoTools: function () { if (self.state.me?.role !== "admin" || !self.state.me?.demo_mode) return; self.setState({ setOpen: false, setClosing: false, demoPanel: true }); },
       openSet: function () { self.setState({ setOpen: true, setClosing: false, inboxOpen: false }); },
       closeSet: function () { self.closeAnim('setClosing', { setOpen: false }); },
       modelOv: st.modelClosing ? 'ov-out' : 'ov-in', modelDlg: st.modelClosing ? 'dlg-out' : 'dlg-in',

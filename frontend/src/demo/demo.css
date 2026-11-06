@@ -112,6 +112,7 @@ html,body{scrollbar-width:none;-ms-overflow-style:none}html::-webkit-scrollbar,b
 .cmp-head,.cmp-row{grid-template-columns:minmax(0,1fr) minmax(0,1.25fr) minmax(88px,.8fr)!important;padding-right:8px!important;box-sizing:border-box}
 .cmp-head>span:last-child,.cmp-row>span:last-child{padding-right:4px}
 @media(max-width:600px){
+  .demo-tools{right:12px!important;bottom:12px!important;max-height:calc(100dvh - 96px)!important}
   .cmp-head,.cmp-row{grid-template-columns:minmax(0,1fr) auto!important;gap:8px 12px!important;padding-left:8px!important;padding-right:12px!important}
   .cmp-head>span:nth-child(2){display:none!important}
   .cmp-head>span:last-child{font-size:13px}
