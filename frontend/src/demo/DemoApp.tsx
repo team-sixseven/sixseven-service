@@ -23,7 +23,7 @@ export class DemoApp extends Component {
       tab: 'board', view: 'main', inboxOpen: false, filter: 'all', sel: null, now: Date.now(), exam: null, memoEdit: null, actEdit: null,
       toast: null, toasts: [], tOut: {}, tSeq: 0, draft: {}, cu: null, alertOver: {},
       apiPatients: [], apiQueue: { analyzing: null, queued: [] }, apiSettings: { threshold: 0.4, re_min: 30, esc_min: 60, channels: { app: true, web: true, sms: false } },
-      apiLogs: [], details: {}, analyses: {}, modelInfo: null, loaded: false,
+      apiLogs: [], details: {}, analyses: {}, modelInfo: null, loaded: false, demoPanel: false, demoAuto: false, settingsMenuOpen: false, demoExpanded: false,
     };
   }
 
@@ -38,7 +38,7 @@ export class DemoApp extends Component {
       if (!e.shiftKey || e.ctrlKey || e.metaKey || e.altKey || tg === 'INPUT' || tg === 'TEXTAREA' || tg === 'SELECT') return;
       if (!self.state.me || self.state.me.role !== 'admin' || !self.state.me.demo_mode) return;
       var k = e.code;
-      if (k === 'KeyD') { self.setState({ demoPanel: !self.state.demoPanel }); e.preventDefault(); }
+      if (k === 'KeyD') { self.setState({ demoPanel: !self.state.demoPanel, demoExpanded: false, settingsMenuOpen: false }); e.preventDefault(); }
       else if (k === 'KeyN') { self.demoNext(false); e.preventDefault(); }
       else if (k === 'KeyH') { self.demoNext(true); e.preventDefault(); }
       else if (k === 'KeyS') { self.demoCur(); e.preventDefault(); }
@@ -46,7 +46,7 @@ export class DemoApp extends Component {
       else if (k === 'KeyR') { self.demoReset(); e.preventDefault(); }
       else if (k === 'KeyA') { self.demoAll(); e.preventDefault(); }
     };
-    this._onDocDown = function (e) { if (self.state.sbfOpen && !(e.target.closest && e.target.closest('[data-sbf]'))) self.setState({ sbfOpen: false }); if (self.state.acctOpen && !(e.target.closest && e.target.closest('[data-acct]'))) self.closeAnim('acctClosing', { acctOpen: false }); if (self.state.inboxOpen && !self.state.inboxClosing && !(e.target.closest && e.target.closest('[data-inbox]')) && self._closeInbox) self._closeInbox(); };
+    this._onDocDown = function (e) { if (self.state.settingsMenuOpen && !(e.target.closest && e.target.closest('[data-settings-menu]'))) self.setState({ settingsMenuOpen: false }); if (self.state.sbfOpen && !(e.target.closest && e.target.closest('[data-sbf]'))) self.setState({ sbfOpen: false }); if (self.state.acctOpen && !(e.target.closest && e.target.closest('[data-acct]'))) self.closeAnim('acctClosing', { acctOpen: false }); if (self.state.inboxOpen && !self.state.inboxClosing && !(e.target.closest && e.target.closest('[data-inbox]')) && self._closeInbox) self._closeInbox(); };
     document.addEventListener('keydown', this._onKey); document.addEventListener('pointerdown', this._onDocDown, true);
     if (getToken()) {
       api('/me').then(function (me) { self.setState({ me: me, booting: false, appIn: true }); self.startSession(); })
@@ -361,6 +361,7 @@ export class DemoApp extends Component {
     this._closeInbox = this._cl.inbox;
     this._esc = function () {
       var S = self.state;
+      if (S.settingsMenuOpen) { self.setState({ settingsMenuOpen: false }); return true; }
       if (self._edEsc && !S.edClosing) { self._edEsc(); return true; }
       if (self._ackEsc && !S.ackClosing) { self._ackEsc(); return true; }
       if (S.sbsOpen && !S.sbsClosing) { self._cl.sbs(); return true; }
@@ -832,7 +833,7 @@ export class DemoApp extends Component {
       doLogin: function () { self.doLogin(); },
       doLogout: function () { self.doLogout(); },
       acctOpen: !!st.acctOpen, acctAria: st.acctOpen ? 'true' : 'false',
-      toggleAcct: function () { if (self.state.acctClosing) return; if (self.state.acctOpen) { self.closeAnim('acctClosing', { acctOpen: false }); } else { self.setState({ acctOpen: true, inboxOpen: false, sbfOpen: false }); } },
+      toggleAcct: function () { if (self.state.acctClosing) return; if (self.state.acctOpen) { self.closeAnim('acctClosing', { acctOpen: false }); } else { self.setState({ acctOpen: true, inboxOpen: false, settingsMenuOpen: false, sbfOpen: false }); } },
       acctAnim: st.acctClosing ? 'inbox-close' : 'inbox-open',
       acctName: (st.me || {}).username || '', acctRole: (st.me || {}).role === 'attending' ? '담당의 · ' + ((st.me || {}).dept || '') : ((st.me || {}).role_label || ''),
       acctIcon: st.user === 'admin' ? '#FFFFFF' : '#16191F',
@@ -856,7 +857,7 @@ export class DemoApp extends Component {
       mailCls: st.toast ? (newCount % 2 ? 'ring-a' : 'ring-b') : '',
       inboxAnim: st.inboxClosing ? 'inbox-close' : 'inbox-open',
       toggleInbox: function () {
-        if (!self.state.inboxOpen) { self.setState({ inboxOpen: true, inboxClosing: false }); return; }
+        if (!self.state.inboxOpen) { self.setState({ inboxOpen: true, inboxClosing: false, settingsMenuOpen: false }); return; }
         if (self.state.inboxClosing) return;
         self.setState({ inboxClosing: true });
         self._timers.push(setTimeout(function () { self.setState({ inboxOpen: false, inboxClosing: false }); }, 230));
@@ -893,7 +894,11 @@ export class DemoApp extends Component {
         self.setState({ models: ms, pend: null, logs: self.log({ t: T, who: '관리자', pt: '—', ev: '모델 등록 · ' + String(pd.ver).trim() + ' (' + pd.file + ')' }) });
       },
       closeModel: function () { self.closeAnim('modelClosing', { modelOpen: false }); },
-      openSet: function () { self.setState({ setOpen: true, setClosing: false, inboxOpen: false }); },
+      canDemoTools: !!st.me && st.me.role === "admin" && !!st.me.demo_mode,
+      openDemoTools: function () { if (self.state.me?.role !== "admin" || !self.state.me?.demo_mode) return; self.setState({ setOpen: false, setClosing: false, settingsMenuOpen: false, demoPanel: true, demoExpanded: false }); },
+      settingsMenuOpen: !!st.settingsMenuOpen,
+      toggleSettingsMenu: function () { self.setState({ settingsMenuOpen: !self.state.settingsMenuOpen, inboxOpen: false, acctOpen: false }); },
+      openSet: function () { self.setState({ settingsMenuOpen: false, setOpen: true, setClosing: false, inboxOpen: false }); },
       closeSet: function () { self.closeAnim('setClosing', { setOpen: false }); },
       modelOv: st.modelClosing ? 'ov-out' : 'ov-in', modelDlg: st.modelClosing ? 'dlg-out' : 'dlg-in',
       setOv: st.setClosing ? 'ov-out' : 'ov-in', setDlg: st.setClosing ? 'dlg-out' : 'dlg-in',
@@ -979,10 +984,10 @@ export class DemoApp extends Component {
       toastSub: (function () { var c = st.ch, o = []; if (c.app) o.push('휴대폰 앱'); if (c.sms) o.push('문자'); return 'Holter 분석이 끝났습니다.' + (o.length ? ' ' + o.join('·') + (o[o.length - 1] === '문자' ? '로도' : '으로도') + ' 발송했습니다.' : ''); })(),
       toastCls: st.toastOut ? 'toast-out' : 'toast-in',
       dm: (function () {
-        return { open: !!st.demoPanel, auto: st.demoAuto === true, queueText: '서버가 남은 시연 기록을 순서대로 넣습니다',
+        return { expanded: !!st.demoExpanded, toggleExpanded: function () { self.setState({ demoExpanded: !self.state.demoExpanded }); }, open: !!st.demoPanel && st.me?.role === 'admin' && !!st.me?.demo_mode, auto: st.demoAuto === true, queueText: '서버가 남은 시연 기록을 순서대로 넣습니다',
           noNext: false, noHigh: false, noAll: false, noCur: false, all: function () { self.demoAll(); }, next: function () { self.demoNext(false); }, high: function () { self.demoNext(true); },
           followup: function () { self.demoCall('/admin/demo/followup', '추이 시연용 후속 기록을 수신했습니다.'); }, cur: function () { self.demoCur(); }, skip: function () { self.demoSkip(30); }, reset: function () { self.demoReset(); },
-          toggleAuto: function (e) { self.demoAuto(e.target.checked); }, close: function () { self.setState({ demoPanel: false }); },
+          toggleAuto: function (e) { self.demoAuto(e.target.checked); }, close: function () { self.setState({ demoPanel: false, demoExpanded: false }); },
           btn: 'min-height: 32px; padding: 2px 12px; border: 1px solid #D5D9E0; background: #FFFFFF; color: #16191F; font-size: 17px; cursor: pointer; text-align: left;',
           kbd: 'font: 500 12px/1 ui-monospace, monospace; color: #646B78; border: 1px solid #E4E7EC; border-radius: 4px; padding: 3px 5px; background: #F7F8FA;' };
       })(),
