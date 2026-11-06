@@ -24,6 +24,12 @@ export function DemoView({ v }: { v: Vals }) {
     return () => window.removeEventListener('resize', resize);
   }, []);
   useEffect(() => {setToolPosition(p => p ? clampTool(p.left, p.top) : p);}, [v.dm.expanded]);
+  useEffect(() => {
+    if (!v.dm.open) return;
+    const anchor = document.querySelector('button[aria-label="설정"]')?.getBoundingClientRect();
+    const panel = toolRef.current?.getBoundingClientRect();
+    if (anchor && panel) setToolPosition(clampTool(anchor.right - panel.width, anchor.bottom + 8));
+  }, [v.dm.open]);
   const startToolDrag = e => {
     if (e.target.closest('button') || e.button !== 0) return;
     const rect = toolRef.current.getBoundingClientRect();
