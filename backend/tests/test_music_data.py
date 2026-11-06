@@ -168,6 +168,26 @@ class MusicImportTests(unittest.TestCase):
         with database.connect() as conn:
             music_data.reset_reception(conn)
 
+    def test_manual_reception_prioritizes_trend_and_continues(self):
+        self.prepare_autoplay()
+        with database.connect() as conn:
+            self.assertEqual(music_data.manual_remaining(conn), 90)
+            received = []
+            for _ in range(3):
+                music_data.receive_next(conn)
+                report = conn.execute('SELECT * FROM holter_reports ORDER BY rowid DESC LIMIT 1').fetchone()
+                received.append(report['file_uri'])
+                patient = conn.execute('SELECT * FROM patients WHERE id=?', (report['patient_id'],)).fetchone()
+                inputs = music_data.pipeline.gather_inputs(conn, patient, report)
+                music_data.pipeline.save_analysis(conn, report, patient, inputs, self.predict(inputs))
+                conn.commit()
+            self.assertEqual(received, ['music:T78', 'music:T34', music_data.SYNTHETIC_FOLLOWUP_URI])
+            self.assertEqual(music_data.manual_remaining(conn), 87)
+            music_data.receive_next(conn)
+            self.assertEqual(music_data.manual_remaining(conn), 86)
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM holter_reports WHERE file_uri=?',
+                                         (music_data.SYNTHETIC_FOLLOWUP_URI,)).fetchone()[0], 1)
+
     def test_autoplay_waits_for_each_analysis_and_stops_at_followup(self):
         self.prepare_autoplay()
         received=[]

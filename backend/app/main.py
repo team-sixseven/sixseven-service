@@ -445,6 +445,9 @@ Demo = Annotated[dict, Depends(demo_only)]
 @app.post("/api/admin/demo/arrive", tags=["demo"])
 async def demo_arrive(user: Demo, high: bool = False, patient: str | None = None, all: bool = False):
     with connect() as conn:
+        if music_data.enabled() and not (patient or high or all):
+            result = music_data.receive_next(conn)
+            return {"arrived": [result] if result else []}
         todo = demo.pending_arrivals(conn)
         if patient:
             todo = [p for p in todo if p == patient]
@@ -488,7 +491,7 @@ async def demo_reset(user: Demo):
 @app.get("/api/admin/demo/auto", tags=["demo"])
 async def demo_auto_status(user: Demo):
     with connect() as conn:
-        return {"enabled": demo.autoplay_active(), "remaining": len(demo.pending_arrivals(conn))}
+        return {"enabled": demo.autoplay_active(), "remaining": music_data.manual_remaining(conn) if music_data.enabled() else len(demo.pending_arrivals(conn))}
 
 
 @app.post("/api/admin/demo/auto", tags=["demo"])
