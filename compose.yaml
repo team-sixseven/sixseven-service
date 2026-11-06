@@ -7,6 +7,7 @@ services:
     restart: unless-stopped
     init: true
     environment:
+      ISOLATED_DEMO: "${ISOLATED_DEMO:-false}"
       MUSIC_DATA_PATH: "${MUSIC_DATA_PATH:-}"
       SQLITE_PATH: /app/data/service.sqlite3
       DEMO_MODE: "${DEMO_MODE:-true}"

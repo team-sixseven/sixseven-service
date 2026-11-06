@@ -4,7 +4,7 @@ import json
 import os
 
 from . import model, inference_client
-from .database import connect, get_settings, iso, next_id, next_number
+from .database import workspace_key, connect, get_settings, iso, next_id, next_number
 from .events import publish
 from .service import add_log, band_for, create_alert, queue_position
 
@@ -18,8 +18,8 @@ STAGES = [
 SHORT_HOURS = 20
 NYHA_NUM = {"I": 1, "II": 2, "III": 3, "IV": 4}
 
-_wake: asyncio.Event | None = None
-_generation = 0
+_generations = {}
+_wakes = {}
 
 
 def stage_seconds() -> float:
@@ -27,14 +27,15 @@ def stage_seconds() -> float:
 
 
 def wake() -> None:
-    if _wake is not None:
-        _wake.set()
+    event = _wakes.get(workspace_key())
+    if event is not None:
+        event.set()
 
 
 def bump_generation() -> None:
     """데모 초기화 때 진행 중이던 분석을 버립니다."""
-    global _generation
-    _generation += 1
+    key = workspace_key()
+    _generations[key] = _generations.get(key, 0) + 1
 
 
 def fresh_progress() -> dict:
@@ -144,7 +145,7 @@ def recover_interrupted() -> None:
 
 
 async def process(report_id: str) -> None:
-    gen = _generation
+    gen = _generations.get(workspace_key(), 0)
     with connect() as conn:
         report = conn.execute("SELECT * FROM holter_reports WHERE id=?", (report_id,)).fetchone()
         patient = conn.execute("SELECT * FROM patients WHERE id=?", (report["patient_id"],)).fetchone()
@@ -154,7 +155,7 @@ async def process(report_id: str) -> None:
         publish("analysis.started", {"patient_id": patient["id"], "record_id": report_id})
 
     def alive() -> bool:
-        return gen == _generation
+        return gen == _generations.get(workspace_key(), 0)
 
     async def stage(key, run):
         """단계를 '진행 중'으로 보여 주고 최소 시간 뒤에 결과(info)를 확정합니다."""
@@ -244,13 +245,13 @@ async def process(report_id: str) -> None:
 
 
 async def run_worker() -> None:
-    global _wake
-    _wake = asyncio.Event()
+    event = asyncio.Event()
+    _wakes[workspace_key()] = event
     recover_interrupted()
-    _wake.set()
+    event.set()
     while True:
-        await _wake.wait()
-        _wake.clear()
+        await event.wait()
+        event.clear()
         while True:
             with connect() as conn:
                 nxt = next_queued(conn)

@@ -146,9 +146,12 @@ def arrive(conn, patient_id):
 
 def reset_reception(conn):
     """Admin-confirmed replay reset: keep accounts, clinical values and cohort identity."""
-    folder = Path(os.environ['MUSIC_DATA_PATH']).parent/'backups'
-    folder.mkdir(exist_ok=True)
-    with sqlite3.connect(folder/('before-replay-'+iso().replace(':','-')+'.sqlite3')) as target:
+    from .database import _workspace
+    workspace = _workspace.get()
+    folder = (workspace.parent/'backups'/workspace.stem) if workspace else Path(os.environ['MUSIC_DATA_PATH']).parent/'backups'
+    folder.mkdir(parents=True, exist_ok=True)
+    from datetime import datetime
+    with sqlite3.connect(folder/('before-replay-'+datetime.now().strftime('%Y%m%dT%H%M%S%f')+'.sqlite3')) as target:
         conn.backup(target)
     conn.execute('BEGIN IMMEDIATE')
     try:

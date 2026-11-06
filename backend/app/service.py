@@ -263,6 +263,10 @@ def get_alert(conn, alert_id: str) -> sqlite3.Row:
 
 
 def ensure_can_act(conn, user: dict, alert) -> None:
+    from . import workspaces
+    from .database import _workspace
+    if workspaces.enabled() and _workspace.get():
+        return
     if user["role"] == "oncall" and alert["re"] < 2:
         raise AlertError(403, "당직의는 당직의에게 전달된 알림만 처리할 수 있습니다.")
     shared_demo = (os.environ.get("DEMO_MODE", "false").lower() in ("1", "true", "yes")

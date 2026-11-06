@@ -37,7 +37,7 @@ export class DemoApp extends Component {
       if (e.key === 'Escape' && self._esc && self._esc()) { e.preventDefault(); return; }
       var tg = e.target && e.target.tagName;
       if (!e.shiftKey || e.ctrlKey || e.metaKey || e.altKey || tg === 'INPUT' || tg === 'TEXTAREA' || tg === 'SELECT') return;
-      if (!self.state.me || self.state.me.role !== 'admin' || !self.state.me.demo_mode) return;
+      if (!self.state.me || (!self.state.me.personal_demo && self.state.me.role !== 'admin') || !self.state.me.demo_mode) return;
       var k = e.code;
       if (k === 'KeyD') { self.setState({ demoPanel: !self.state.demoPanel, demoExpanded: false, settingsMenuOpen: false }); e.preventDefault(); }
       else if (k === 'KeyN') { self.demoNext(false); e.preventDefault(); }
@@ -111,8 +111,8 @@ export class DemoApp extends Component {
       do {
         self._again = false;
         try {
-          var me = self.state.me, admin = me.role === 'admin';
-          var res = await Promise.all([api('/patients'), api('/queue'), api('/settings'), api('/logs?kind=' + (admin ? 'all' : 'human') + '&limit=500'), admin ? api('/admin/demo/auto').catch(function () { return null; }) : Promise.resolve(null)]);
+          var me = self.state.me, admin = me.role === 'admin', canDemo = admin || me.personal_demo;
+          var res = await Promise.all([api('/patients'), api('/queue'), api('/settings'), api('/logs?kind=' + (admin ? 'all' : 'human') + '&limit=500'), canDemo ? api('/admin/demo/auto').catch(function () { return null; }) : Promise.resolve(null)]);
           var pl = res[0].map(function (p) { return Object.assign({}, p, { name: patientDisplayName(p, me.data_mode === 'music') }); }), want = {};
           if (self.state.sel) want[self.state.sel] = true;
           pl.forEach(function (p) { if (p.alert && p.alert.status !== 'done') want[p.id] = true; });
@@ -224,7 +224,7 @@ export class DemoApp extends Component {
     var self = this;
     if (this.state.syncing) return;
     if (this.state.me?.data_mode === 'music') {
-      if (this.state.me.role !== 'admin' || !this.state.me.demo_mode || !this.state.remainingRecords) return;
+      if ((!this.state.me.personal_demo && this.state.me.role !== 'admin') || !this.state.me.demo_mode || !this.state.remainingRecords) return;
       this.setState({ syncing: true });
       api('/admin/demo/arrive', { method: 'POST' }).then(function (r) {
         self.showMsg(r.arrived.length ? 'MUSIC 기록 한 건을 수신했습니다. 자동 분석을 시작합니다.' : '남은 MUSIC 기록이 없습니다.');
@@ -248,7 +248,7 @@ export class DemoApp extends Component {
   demoCur() { this.demoCall('/admin/demo/arrive?patient=' + encodeURIComponent(this.state.sel || ''), '선택한 환자의 시연 기록을 받았습니다.'); }
   demoAll() { this.demoCall('/admin/demo/arrive?all=true', '남은 시연 기록을 모두 받았습니다.'); }
   demoSkip(min) { this.demoCall('/admin/demo/advance?min=' + min, min + '분이 지난 것으로 처리했습니다.'); }
-  demoReset() { if (!window.confirm('모든 접속자의 시연 데이터를 초기화할까요?')) return; this.demoCall('/admin/demo/reset', '처음 상태로 되돌렸습니다.'); }
+  demoReset() { if (!window.confirm(this.state.me?.personal_demo ? '내 계정의 시연 기록을 초기화할까요?' : '모든 접속자의 시연 데이터를 초기화할까요?')) return; this.demoCall('/admin/demo/reset', '처음 상태로 되돌렸습니다.'); }
   demoAuto(on) { var self = this; api('/admin/demo/auto?enabled=' + (on ? 'true' : 'false'), { method: 'POST' }).then(function (r) { self.setState({ demoAuto: !!r.enabled }); self.showMsg(r.enabled ? 'T78 → T34 → 후속 검사 순서로 수신합니다.' : (on ? '시연 분석이 완료되었습니다. T34에서 추이를 확인하세요. 다시 보려면 처음 상태로 초기화하세요.' : '자동 수신을 멈췄습니다.')); self.refresh(); }).catch(function (e) { self.showMsg(e.message); }); }
 
   // ---------------------------------------------------------------- 로그인 · 로그아웃
@@ -905,8 +905,8 @@ export class DemoApp extends Component {
         self.setState({ models: ms, pend: null, logs: self.log({ t: T, who: '관리자', pt: '—', ev: '모델 등록 · ' + String(pd.ver).trim() + ' (' + pd.file + ')' }) });
       },
       closeModel: function () { self.closeAnim('modelClosing', { modelOpen: false }); },
-      canDemoTools: !!st.me && st.me.role === "admin" && !!st.me.demo_mode,
-      openDemoTools: function () { if (self.state.me?.role !== "admin" || !self.state.me?.demo_mode) return; self.setState({ setOpen: false, setClosing: false, settingsMenuOpen: false, demoPanel: true, demoExpanded: false }); },
+      canDemoTools: !!st.me && (st.me.role === "admin" || st.me.personal_demo) && !!st.me.demo_mode,
+      openDemoTools: function () { if ((!self.state.me?.personal_demo && self.state.me?.role !== "admin") || !self.state.me?.demo_mode) return; self.setState({ setOpen: false, setClosing: false, settingsMenuOpen: false, demoPanel: true, demoExpanded: false }); },
       settingsMenuOpen: !!st.settingsMenuOpen,
       toggleSettingsMenu: function () { self.setState({ settingsMenuOpen: !self.state.settingsMenuOpen, inboxOpen: false, acctOpen: false }); },
       openSet: function () { self.setState({ settingsMenuOpen: false, setOpen: true, setClosing: false, inboxOpen: false }); },
@@ -932,8 +932,8 @@ export class DemoApp extends Component {
       resetItemStyle: 'display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 4px 12px; border: none; border-radius: 10px; background: transparent; font-size: 17px; text-align: left; ' + (sortKey !== 'prio' || sq ? 'color: #B42318; cursor: pointer;' : 'color: #8A919E; cursor: default;'),
       doSync: function () { self.sync(); }, syncCls: st.syncing ? 'sync-spin' : '', syncAria: st.syncing ? 'true' : 'false',
       syncLabel: st.me?.data_mode === 'music' ? '다음 기록 수신' : '환자 목록 동기화',
-      syncDisabled: !!st.syncing || (st.me?.data_mode === 'music' && (st.me.role !== 'admin' || !st.me.demo_mode || !st.remainingRecords)),
-      syncTip: st.me?.data_mode === 'music' ? (st.me.role !== 'admin' ? '다음 기록 수신 · 관리자 전용' : st.syncing ? '기록 수신 중…' : st.remainingRecords ? '다음 MUSIC 기록 수신 · 남은 ' + st.remainingRecords + '건' : '남은 MUSIC 기록 없음') : (st.syncing ? '동기화 중…' : '환자 목록 동기화'),
+      syncDisabled: !!st.syncing || (st.me?.data_mode === 'music' && ((!st.me.personal_demo && st.me.role !== 'admin') || !st.me.demo_mode || !st.remainingRecords)),
+      syncTip: st.me?.data_mode === 'music' ? (!st.me.personal_demo && st.me.role !== 'admin' ? '다음 기록 수신 · 관리자 전용' : st.syncing ? '기록 수신 중…' : st.remainingRecords ? '다음 MUSIC 기록 수신 · 남은 ' + st.remainingRecords + '건' : '남은 MUSIC 기록 없음') : (st.syncing ? '동기화 중…' : '환자 목록 동기화'),
       hasSyncMsg: !!st.syncMsg, syncMsg: st.syncMsg || '', syncMsgCls: st.syncMsgOut ? 'snack-out' : 'snack-in',
       sbfBtnStyle: 'width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; border-radius: 12px; cursor: pointer; ' + (st.sbfOpen ? 'border: 1px solid #16191F; background: #FFFFFF;' : 'border: 1px solid #E4E7EC; background: #FFFFFF;'),
       sbsHidden: (st.sbsOpen || sbQ) ? 'false' : 'true',
@@ -997,7 +997,7 @@ export class DemoApp extends Component {
       toastSub: (function () { var c = st.ch, o = []; if (c.app) o.push('휴대폰 앱'); if (c.sms) o.push('문자'); return 'Holter 분석이 끝났습니다.' + (o.length ? ' ' + o.join('·') + (o[o.length - 1] === '문자' ? '로도' : '으로도') + ' 발송했습니다.' : ''); })(),
       toastCls: st.toastOut ? 'toast-out' : 'toast-in',
       dm: (function () {
-        return { expanded: !!st.demoExpanded, toggleExpanded: function () { self.setState({ demoExpanded: !self.state.demoExpanded }); }, open: !!st.demoPanel && st.me?.role === 'admin' && !!st.me?.demo_mode, auto: st.demoAuto === true, queueText: '서버가 남은 시연 기록을 순서대로 넣습니다',
+        return { expanded: !!st.demoExpanded, toggleExpanded: function () { self.setState({ demoExpanded: !self.state.demoExpanded }); }, open: !!st.demoPanel && (st.me?.role === 'admin' || st.me?.personal_demo) && !!st.me?.demo_mode, auto: st.demoAuto === true, queueText: '서버가 남은 시연 기록을 순서대로 넣습니다',
           noNext: false, noHigh: false, noAll: false, noCur: false, all: function () { self.demoAll(); }, next: function () { self.demoNext(false); }, high: function () { self.demoNext(true); },
           followup: function () { self.demoCall('/admin/demo/followup', '추이 시연용 후속 기록을 수신했습니다.'); }, cur: function () { self.demoCur(); }, skip: function () { self.demoSkip(30); }, reset: function () { self.demoReset(); },
           toggleAuto: function () { self.demoAuto(!self.state.demoAuto); }, close: function () { self.setState({ demoPanel: false, demoExpanded: false }); },
