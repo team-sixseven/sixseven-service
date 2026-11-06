@@ -210,3 +210,8 @@ html,body{scrollbar-width:none;-ms-overflow-style:none}html::-webkit-scrollbar,b
   .demo-tools-actions{grid-template-columns:max-content;flex:none}
   .demo-tools-actions .demo-control{min-width:0;padding:4px 10px}
 }
+
+.demo-tools{border:2px solid #2563EB;box-shadow:0 6px 24px #174EA640}
+.demo-tools-bar{background:#2563EB;border-radius:6px;padding:2px 4px 2px 8px;cursor:grab;touch-action:none;user-select:none}
+.demo-tools-bar:active{cursor:grabbing}
+.demo-tools-title,.demo-close{color:#fff}
