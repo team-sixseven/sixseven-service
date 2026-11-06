@@ -215,3 +215,7 @@ html,body{scrollbar-width:none;-ms-overflow-style:none}html::-webkit-scrollbar,b
 .demo-tools-bar{background:#2563EB;border-radius:6px;padding:2px 4px 2px 8px;cursor:grab;touch-action:none;user-select:none}
 .demo-tools-bar:active{cursor:grabbing}
 .demo-tools-title,.demo-close{color:#fff}
+.demo-tools-bar{background:transparent;border-radius:0;padding:0;gap:12px}
+.demo-tools-title{color:#174EA6;flex:1}
+.demo-close{color:#174EA6;margin-left:auto;width:24px;height:24px}
+.demo-tools-actions{grid-template-columns:1fr}
